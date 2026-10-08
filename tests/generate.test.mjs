@@ -500,8 +500,9 @@ describe("lead lines", () => {
     for (const text of ["# X\n\nA.\n", "# X\n\nA."]) expect(stampLeadLine(text, "A.")).toBe(text);
   });
 
-  test("Codex and Copilot stamp a preamble on their noted skills and Pi stamps none", () => {
-    expect(RUNTIMES.map((r) => r.name)).toEqual(["Codex", "Pi", "GitHub Copilot"]);
+  test("Codex and Copilot stamp a preamble on their noted skills, and Pi and OpenCode stamp none", () => {
+    expect(RUNTIMES.map((r) => r.name)).toEqual(["Codex", "Pi", "GitHub Copilot", "OpenCode"]);
+    expect(RUNTIMES[3].preamble).toBeNull();
     expect(codex.preamble).toBe(
       "On Codex, read the [platform mapping](../poteto-mode/references/codex-tools.md), including its per-skill notes, before following this skill.",
     );

@@ -1,0 +1,12 @@
+{
+  "name": "pstack-opencode",
+  "version": "0.9.79",
+  "private": true,
+  "description": "PStack for OpenCode: registers the shared pstack skills and injects the routing instruction. Install with the shared skills tree beside this directory.",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {
+    "@opencode/plugin": "2.0.18"
+  }
+}

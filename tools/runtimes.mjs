@@ -4,6 +4,11 @@
 
 import { code, codeList, PLUGIN, SKILLS } from "./plugin.mjs";
 
+// The OpenCode build: the plugin entry, its agent profiles, and its package
+// manifest. Its mapping file names the profiles.
+const OPENCODE = `${PLUGIN}/opencode`;
+const OPENCODE_MAPPING = `${SKILLS}/poteto-mode/references/opencode-tools.md`;
+
 // Every runtime other than Claude Code that reads the skills through a mapping
 // file under poteto-mode/references/. A row gives the runtime the generated
 // Model names section in its mapping file, and a row with a `key` its
@@ -17,6 +22,8 @@ import { code, codeList, PLUGIN, SKILLS } from "./plugin.mjs";
 // relative to the plugin root. GitHub Copilot stamps preambles but has no
 // prompts directory, since its CLI and app list plugin skills as slash commands
 // themselves, and no models.json block, since it ships no default models.
+// OpenCode is the same: no preamble, prompts, or models.json block, and a
+// package.json manifest for the plugin entry it installs.
 export const RUNTIMES = [
   {
     name: "Codex",
@@ -52,6 +59,15 @@ export const RUNTIMES = [
       validateCopilotManifest(manifest, { claude: JSON.parse(read(`${PLUGIN}/.claude-plugin/plugin.json`)), pathExists }),
     hooks: (manifest) => [manifest.hooks],
     pluginRootVar: "COPILOT_PLUGIN_ROOT",
+  },
+  {
+    name: "OpenCode",
+    mapping: "opencode-tools.md",
+    modelNames: opencodeModelNamesSection,
+    // The OpenCode build is a plugin entry, its agent profiles, and a package
+    // manifest. The manifest is the file VERSION is stamped into.
+    manifest: `${OPENCODE}/package.json`,
+    validate: ({ manifest, read, pathExists }) => validateOpencodePackage(manifest, { read, pathExists }),
   },
 ].map((runtime) => ({
   ...runtime,
@@ -233,3 +249,56 @@ export function copilotModelNamesSection(models) {
     "chose in about half of the smoke runs."
   );
 }
+
+// OpenCode ships no default model IDs, as on GitHub Copilot. The aliases skills
+// name resolve to nothing there, and the subagent tool has no per-call model
+// field, so a subagent runs on the session's model unless its profile names one.
+export function opencodeModelNamesSection(models) {
+  const strongest = models.roles.filter((r) => r.tier === "strongest");
+  return (
+    "pstack ships no default model IDs for OpenCode, as on GitHub Copilot. Skills name the Claude aliases " +
+    `${codeList(models.available)} in their Models sections, and none of them resolves on OpenCode, so pass none of them to any tool.\n\n` +
+    "- A pstack subagent runs on the session's current model. The `subagent` tool takes no per-call model field.\n" +
+    "- To run one role on another model, add a `model:` line naming a `provider/model` ID, with an optional `#variant`, " +
+    "to an agent profile outside the installer's managed set. Confirm the ID in the model list the harness shows, then run " +
+    "a fresh subagent and check the model it reports before you rely on it.\n" +
+    `- Roles that default to the strongest Claude model (${strongest.map((r) => code(r.role)).join(", ")}) run on the session's model too.\n` +
+    "- Diverse-model panels (`arena`, `architect`, `interrogate`, `how` critics, `reflect`) lose their diversity while every " +
+    "reviewer runs on one model. Say so in the verdict. Distinct profiles restore it.\n\n" +
+    "The `/setup-pstack` sheet does not reach OpenCode subagents, so its role lines have no effect here."
+  );
+}
+
+// The OpenCode build's packaging. The installer copies the entry, the files it
+// imports, and the agent profiles, so each must exist. The entry imports
+// @opencode/plugin, so the manifest pins it to one version the installer can
+// install beside the entry. A profile runs on the session's model, so it must
+// not name one, and the mapping file must name each profile it dispatches.
+export function validateOpencodePackage(manifest, { read, pathExists }) {
+  const at = `${OPENCODE}/package.json`;
+  if (typeof manifest.name !== "string" || !manifest.name) throw new Error(`${at}: name must be a non-empty string`);
+  if (manifest.main !== "index.ts") throw new Error(`${at}: main is "${manifest.main}", not the entry "index.ts"`);
+  const pin = manifest.dependencies?.["@opencode/plugin"];
+  if (typeof pin !== "string" || !/^\d+\.\d+\.\d+$/.test(pin)) {
+    throw new Error(`${at}: dependencies must pin "@opencode/plugin" to one exact version, found ${JSON.stringify(pin)}`);
+  }
+  for (const file of ["index.ts", "load.ts", "routing.ts"]) {
+    if (!pathExists(`${OPENCODE}/${file}`)) throw new Error(`${OPENCODE}/${file} is missing; the entry imports it`);
+  }
+  const mapping = read(OPENCODE_MAPPING);
+  for (const agent of OPENCODE_AGENTS) {
+    const path = `${OPENCODE}/agents/${agent}.md`;
+    if (!pathExists(path)) throw new Error(`${path} is missing`);
+    const block = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+    if (block === undefined) throw new Error(`${path}: no frontmatter block`);
+    const data = Bun.YAML.parse(block) ?? {};
+    if (Object.hasOwn(data, "model")) throw new Error(`${path}: frontmatter sets "model"; a profile runs on the session's model`);
+    if (data.mode !== "subagent") throw new Error(`${path}: mode must be "subagent", found ${JSON.stringify(data.mode)}`);
+    if (typeof data.description !== "string" || !data.description) throw new Error(`${path}: needs a description`);
+    if (!mapping.includes(`\`${agent}\``)) throw new Error(`${OPENCODE_MAPPING} does not name the agent \`${agent}\``);
+  }
+}
+
+// The profiles the installer copies into a workspace's .opencode/agents, by ID.
+// Their file names are their IDs: OpenCode registers an agent under its file name.
+export const OPENCODE_AGENTS = ["pstack-agent", "pstack-reviewer", "pstack-comment-sicko"];
