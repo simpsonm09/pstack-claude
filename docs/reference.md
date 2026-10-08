@@ -47,7 +47,7 @@ Find each skill's instructions in the [skills tree](../plugins/pstack/skills/).
 
 ## Runtime support
 
-All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only installation includes the skills, scripts, agent references, and license notices. The Claude Code, Codex, and GitHub Copilot plugins also install automatic routing hooks, and the Pi package adds an extension that injects the same routing and supplies the subagent tools. Codex command shortcuts are separate.
+All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only installation includes the skills, scripts, agent references, and license notices. The Claude Code, Codex, and GitHub Copilot plugins also install automatic routing hooks, and the Pi package adds an extension that injects the same routing and supplies the subagent tools. The OpenCode plugin entry registers the skills, injects the routing, and ships the agent profiles that run subagents. Codex command shortcuts are separate.
 
 | Runtime | Setup and recorded verification |
 | --- | --- |
@@ -56,10 +56,10 @@ All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only i
 | Pi | Install the repository as a Pi package with `pi install`. The [Pi extension](../plugins/pstack/pi/index.ts) registers the subagent, question, and wake-up tools and `/loop`, and the [Pi mapping](../plugins/pstack/skills/poteto-mode/references/pi-tools.md) translates Claude tools and model names. The [equivalence table](pi-equivalence.md) records each Claude Code mechanism and how it was verified on Pi 1.0. |
 | GitHub Copilot | Install the plugin through the repository's marketplace; the CLI and the GitHub Copilot app share it. The [Copilot mapping](../plugins/pstack/skills/poteto-mode/references/copilot-tools.md) translates Claude tools, paths, and model roles, and maps app-only tools to CLI fallbacks. Install, routing, agent dispatch, and first-run setup are smoke-tested on the CLI; see [GitHub Copilot](#github-copilot). |
 | Prime Agent | Its documentation describes shared-directory discovery; it has not been tested in a live session. Choose tools and models through Prime's configuration. |
-| opencode | Discovery and reading a linked skill were verified on version 1.18.25. Configure agents, commands, and permissions in `opencode.json`. Its picker also lists principle skills. |
+| opencode | The [OpenCode build](#opencode) is a plugin entry that registers the shared skills and injects the routing, with three agent profiles and an [OpenCode mapping](../plugins/pstack/skills/poteto-mode/references/opencode-tools.md). Its files and checks run offline; no live OpenCode 2.0 session has run them. Discovery of a linked skill was verified on version 1.18.25. |
 | Gemini CLI | Its documentation describes shared-directory discovery; it has not been tested in a live session. Use `/skills list` to check discovery and `/skills reload` after changes. |
 
-These checks cover skill discovery. Delegation and multi-model workflows remain unverified on Prime Agent, opencode, and Gemini CLI. On those runtimes, agents must adapt Claude-specific tools, models, and configuration. Each mapping applies only to its runtime.
+These checks cover skill discovery. Delegation and multi-model workflows remain unverified on Prime Agent and Gemini CLI, and on opencode outside the [OpenCode build](#opencode). On those runtimes, agents must adapt Claude-specific tools, models, and configuration. Each mapping applies only to its runtime.
 
 ### Automatic routing
 
@@ -73,11 +73,13 @@ Smaller tasks proceed directly. The full skill loads when invoked, and explicit 
 
 To disable routing, run `setup-pstack` and turn off the session hook. In Claude Code, use `/pstack:setup-pstack`. You can also write `session hook: off` in the runtime's sheet, at the path in [setup-pstack's runtime table](../plugins/pstack/skills/setup-pstack/SKILL.md#other-runtimes). The hook reads that setting before injecting its instruction. Without the setting, routing stays on.
 
-Skills-only installs and other runtimes do not include the hook or the Pi extension. Request `poteto-mode` explicitly, or add a standing instruction to the runtime's instruction file.
+The [OpenCode plugin entry](../plugins/pstack/opencode/index.ts) adds the same instruction to every session's context, with a pointer to the OpenCode mapping instead of the Claude Code hook's text. Set its `routing: false` option to turn it off.
+
+Skills-only installs and other runtimes do not include the hook, the Pi extension, or the OpenCode plugin entry. Request `poteto-mode` explicitly, or add a standing instruction to the runtime's instruction file.
 
 ### Shared skills installation
 
-Use this path for Prime Agent, opencode, Gemini CLI, or a skills-only Codex installation. Clone the repository and link its skills into `~/.agents/skills/`:
+Use this path for Prime Agent, Gemini CLI, a skills-only Codex installation, or opencode without the [OpenCode plugin entry](#opencode). Clone the repository and link its skills into `~/.agents/skills/`:
 
 ```shell
 git clone https://github.com/michael-denyer/pstack-claude
@@ -161,6 +163,27 @@ Copilot lists only part of a large plugin's skills in its prompt, so some pstack
 
 [`tests/copilot-smoke.sh`](../tests/copilot-smoke.sh) installs the checkout into a throwaway `COPILOT_HOME` and checks installation, routing, `session hook: off`, agent dispatch with an explicit model, first-run setup, that setup writes no sheet without the user's answers and exactly the supplied IDs with them, and that saved choices and plugin files reach a session without `--allow-all-paths` or any path-access request, from each session's `events.jsonl` and the written sheet. It runs the setup checks once per model in `SMOKE_SETUP_MODELS`. It also checks the `PreToolUse` deny, a vendored script and `check-sheet.sh` run with no permission request, that an injected sheet line stays out of the context, that an invalid sheet yields `sheet invalid`, that each hook fires once, the merge with a second plugin's session-start context, a `-p` resume, and, on a pseudo-terminal through [`tests/copilot-tui.py`](../tests/copilot-tui.py), a slash-command first message and an interactive resume. It needs a signed-in `copilot` CLI, spends about twenty premium requests, and skips when `copilot` is missing. CI does not run it.
 
+### OpenCode
+
+The OpenCode build has three parts: a plugin entry, three agent profiles, and an [OpenCode mapping](../plugins/pstack/skills/poteto-mode/references/opencode-tools.md) that translates the Claude names the skills use. It replaces the separate `pstack-opencode` package, which carried its own copy of the skills. This build reads the shared tree instead, so one checkout serves every runtime.
+
+- The [plugin entry](../plugins/pstack/opencode/index.ts) registers every skill under [`plugins/pstack/skills/`](../plugins/pstack/skills/) by directory name. It resolves that tree as `../skills` from its own file, so the tree must sit beside the plugin directory. Without it the entry registers no skills and logs a warning.
+- The entry imports `@opencode/plugin`. Its [`package.json`](../plugins/pstack/opencode/package.json) pins version 2.0.18, so install that exact version in the directory that holds the entry.
+- The [agent profiles](../plugins/pstack/opencode/agents/) are `pstack-agent` (the worker), `pstack-reviewer` (read-only), and `pstack-comment-sicko` (read-only comment review). Copy them into the workspace's `.opencode/agents/`, or into `~/.config/opencode/agents/`. They carry no `model:` line, so each runs on the session's model. The mapping names these IDs.
+- The routing instruction names the mapping file by its absolute path, so an agent reads the mapping instead of loading a separate `pstack-opencode` skill.
+- No model is shipped. A subagent takes the session's model. To run one role on another model, add a `model:` line naming a `provider/model` ID to a profile you own, then check the model that a fresh subagent reports.
+
+A workspace installer needs to do four things:
+
+1. Copy `plugins/pstack/opencode/` and `plugins/pstack/skills/` into the workspace so that `skills/` sits beside the plugin directory, for example `.opencode/plugins/pstack-opencode/` and `.opencode/plugins/skills/`. Copying only the plugin directory leaves the entry with no skills.
+2. Run `npm install`, or `bun install`, in the plugin directory to install `@opencode/plugin`.
+3. Copy `agents/*.md` into `.opencode/agents/`, and do not edit a `model:` line into them.
+4. Start a new session.
+
+This layout follows the separate port's installer. Whether OpenCode 2.0 loads an entry from these paths was not verified for this build.
+
+The offline checks cover the entry's frontmatter parsing, skill loading, routing text, and registration against a stubbed context, and the generator's validator covers the files, the dependency pin, the profiles, and the mapping's names. A live OpenCode 2.0.x session has not yet checked that OpenCode loads the entry, that `skill.transform` and `session.hook("context")` accept the calls the entry makes, the `subagent`, `question`, `webfetch`, and `websearch` tool names and the `background` field, the permission names in the profiles, that the agent IDs resolve from `.opencode/agents/`, or that a subagent reports the model it inherits. Run one live session before relying on the build.
+
 ## Configuration and dependencies
 
 Invoke [setup-pstack](../plugins/pstack/skills/setup-pstack/SKILL.md) to choose models for each role. It detects available models, confirms the choices, and writes an override sheet. Its [runtime table](../plugins/pstack/skills/setup-pstack/SKILL.md#other-runtimes) names the sheet path and loading mechanism for each runtime. Defaults live in [models.json](../plugins/pstack/models.json).
@@ -202,6 +225,7 @@ plugins/pstack/
   .codex-plugin/                  Codex manifest and generated prompt stubs
   .github/plugin/plugin.json      GitHub Copilot plugin manifest
   pi/                            Pi extension (subagent, question, and wake-up tools)
+  opencode/                      OpenCode plugin entry, agent profiles, and package manifest
   skills/                        Shared skills, references, and scripts
   agents/                        Claude Code subagent definitions
   hooks/                         Startup routing for Claude Code, Codex, and Copilot; Copilot tool checks
@@ -213,7 +237,7 @@ Skills-only installs use `plugins/pstack/skills/`. Agent references and license 
 
 ### Generated files and checks
 
-The [generator](../tools/generate.mjs) updates versions, model defaults, Codex prompts, Copilot preambles and role lists, and portable reference files, and validates the Pi package manifest. The [slash-command table](#slash-commands) supplies the Codex prompt descriptions and order. Edit that table when changing a menu description, then regenerate. Keep a row for every public skill, with `poteto-mode` first.
+The [generator](../tools/generate.mjs) updates versions, model defaults, Codex prompts, Copilot preambles and role lists, and portable reference files, and validates the Pi and OpenCode package manifests. The [slash-command table](#slash-commands) supplies the Codex prompt descriptions and order. Edit that table when changing a menu description, then regenerate. Keep a row for every public skill, with `poteto-mode` first.
 
 [Documentation fact tests](../tests/readme-facts.test.mjs) check the skill counts and upstream pin. The table parser requires the header `| command | use it when |`.
 
@@ -233,7 +257,7 @@ CI also checks shell scripts, workflows, Markdown, relative links, and the bundl
 
 The skill tree is synced against upstream `df58112` (v0.15.15).
 
-This repository ports Lauren Tan's pstack from Cursor to Claude Code and shares the skills with other runtimes. It includes seven cursor-team-kit skills and an independently authored `babysit` skill. The port supplies Claude Code plugin registration and routing, Codex manifests and shortcuts, the Codex tool mapping, the Pi package, extension, and tool mapping, and the GitHub Copilot hooks and tool mapping.
+This repository ports Lauren Tan's pstack from Cursor to Claude Code and shares the skills with other runtimes. It includes seven cursor-team-kit skills and an independently authored `babysit` skill. The port supplies Claude Code plugin registration and routing, Codex manifests and shortcuts, the Codex tool mapping, the Pi package, extension, and tool mapping, the GitHub Copilot hooks and tool mapping, and the OpenCode plugin entry, agent profiles, and tool mapping.
 
 Cursor-specific automations, sticky-mode metadata, the Grok Bot UI workflow, and the Cursor UI tutorial are excluded. [tools/upstream.json](../tools/upstream.json) records the revisions and exclusions, [tools/substitutions.json](../tools/substitutions.json) holds the Cursor-to-Claude rewrite rules, and [CHANGES.md](../CHANGES.md) records each release. The bundled `thermo-nuclear-code-quality-review` provides a maintainability review when a workflow calls for one.
 
