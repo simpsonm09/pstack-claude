@@ -106,7 +106,9 @@ describe.skipIf(process.platform !== "win32" && !required)("Windows Codex Sessio
 // same sheet. Copilot gives the hook its plugin root with backslashes, which
 // the POSIX hook cannot read, so the POSIX side runs on the same directories
 // written with forward slashes.
-const copilotStart = JSON.parse(readFileSync(join(pluginRoot, "hooks/copilot-hooks.json"), "utf8")).hooks.sessionStart[0];
+const copilotHooks = JSON.parse(readFileSync(join(pluginRoot, "hooks/copilot-hooks.json"), "utf8")).hooks;
+const copilotStart = copilotHooks.sessionStart[0];
+const copilotPreToolUse = copilotHooks.preToolUse[0];
 const models = JSON.parse(readFileSync(join(pluginRoot, "models.json"), "utf8"));
 const forwardSlashes = (path) => path.replaceAll("\\", "/");
 const pwshPath = (() => {
@@ -132,9 +134,10 @@ function withCopilotPlugin({ sheet = null, edit } = {}, use) {
   }
 }
 
-// The `powershell` command, run in a PowerShell host with only the system
-// directories on PATH, so the run needs neither Git nor Bash.
-function runPowerShell({ plugin, home }, host = "powershell.exe") {
+// A hook's `powershell` command, run in a PowerShell host with only the system
+// directories on PATH, so the run needs neither Git nor Bash. The payload, when
+// given, is the hook's JSON on stdin.
+function runPowerShell({ plugin, home }, host = "powershell.exe", { command = copilotStart.powershell, input } = {}) {
   const env = {
     SystemRoot: process.env.SystemRoot,
     PATH: join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0"),
@@ -146,8 +149,8 @@ function runPowerShell({ plugin, home }, host = "powershell.exe") {
   for (const name of ["TEMP", "TMP", "LOCALAPPDATA", "APPDATA", "ProgramData", "PSModulePath"]) {
     if (process.env[name] !== undefined) env[name] = process.env[name];
   }
-  const encoded = Buffer.from(copilotStart.powershell, "utf16le").toString("base64");
-  const r = spawnSync(host, ["-NoProfile", "-EncodedCommand", encoded], { env });
+  const encoded = Buffer.from(command, "utf16le").toString("base64");
+  const r = spawnSync(host, ["-NoProfile", "-EncodedCommand", encoded], { env, input });
   if (r.error) throw r.error;
   return { status: r.status, out: r.stdout, err: r.stderr.toString("utf8") };
 }
@@ -208,6 +211,22 @@ describe.skipIf(process.platform !== "win32" && !required)("Windows Copilot Sess
     expect(copilotStart.powershell).toBe(
       'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:COPILOT_PLUGIN_ROOT/hooks/session-start-copilot.ps1"',
     );
+  });
+
+  // Copilot runs the `bash` command of a hook with no `powershell` command on
+  // Windows, and there /bin/bash has no COPILOT_PLUGIN_ROOT, so the POSIX hook
+  // errors and Copilot denies the call. The stub keeps the call on the normal
+  // permission flow instead.
+  test("the PreToolUse command on Windows makes no decision and exits 0", () => {
+    expect(copilotPreToolUse.powershell).toBe(
+      'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:COPILOT_PLUGIN_ROOT/hooks/pre-tool-use-windows.ps1"',
+    );
+    withCopilotPlugin({}, (fixture) => {
+      for (const input of [JSON.stringify({ toolName: "view", toolArgs: { path: "C:\\x" } }), "not json", ""]) {
+        const r = runPowerShell(fixture, "powershell.exe", { command: copilotPreToolUse.powershell, input });
+        expect({ status: r.status, out: r.out.toString("utf8"), err: r.err }).toEqual({ status: 0, out: "", err: "" });
+      }
+    });
   });
 
   for (const { name, sheet, off } of sheetCases) {

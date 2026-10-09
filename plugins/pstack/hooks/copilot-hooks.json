@@ -14,7 +14,8 @@
         "type": "command",
         "matcher": "view|task|bash",
         "bash": "\"${COPILOT_PLUGIN_ROOT}/hooks/pre-tool-use.sh\"",
-        "timeoutSec": 5
+        "powershell": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:COPILOT_PLUGIN_ROOT/hooks/pre-tool-use-windows.ps1\"",
+        "timeoutSec": 10
       }
     ]
   }
