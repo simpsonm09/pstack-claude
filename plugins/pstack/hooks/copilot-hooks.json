@@ -5,6 +5,7 @@
       {
         "type": "command",
         "bash": "\"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh\" copilot",
+        "powershell": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:COPILOT_PLUGIN_ROOT/hooks/session-start-copilot.ps1\"",
         "timeoutSec": 30
       }
     ],

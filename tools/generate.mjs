@@ -30,6 +30,7 @@
 //   DRIVER_PLAYBOOKS -> the driver-skill line under each playbook's first heading
 //   plugins/pstack/models.json's roles, again
 //     -> the role list in setup-pstack's scripts/sheet.awk, which checks a Copilot sheet
+//     -> the role list in hooks/session-start-copilot.ps1, the Windows check of the same sheet
 //     -> the list of skills that dispatch on role models in hooks/session-start-copilot.md
 //   plugins/pstack/{agents,effort-agents}/*.md -> the "agents" list in
 //     plugins/pstack/.claude-plugin/plugin.json (a list replaces the default
@@ -376,6 +377,25 @@ function sheetRoles(models) {
   ];
 }
 
+const SESSION_START_PS = `${PLUGIN}/hooks/session-start-copilot.ps1`;
+const PS_ROLES_OPEN = "# Stamped from plugins/pstack/models.json; edit there and rerun tools/generate.mjs.";
+const PS_ROLES_CLOSE = "# End of the stamped role list.";
+
+// PowerShell lists of the roles, the panel roles, and the effort levels, as the
+// Windows Copilot hook reads them. Single-quoted, so no text expands.
+function psSheetRoles(models) {
+  const quote = (s) => {
+    if (/['\r\n]/.test(s)) throw new Error(`models.json: "${s}" cannot go in a PowerShell string`);
+    return `'${s}'`;
+  };
+  const list = (name, items) => [`$${name} = @(`, ...items.map((s) => `    ${quote(s)}`), ")"];
+  return [
+    ...list("SheetRoles", models.roles.map((r) => r.role)),
+    ...list("PanelRoles", models.roles.filter((r) => r.tier === "panel").map((r) => r.role)),
+    ...list("SheetEfforts", models.efforts),
+  ];
+}
+
 function requiredRole(models, label) {
   const role = models.roles.find((r) => r.role === label);
   if (!role) throw new Error(`models.json: no "${label}" role, which a stamped region renders from`);
@@ -439,6 +459,12 @@ export function regions(models) {
       name: "role list",
       locate: between(SHEET_ROLES_OPEN, "  return n"),
       render: () => sheetRoles(models),
+    },
+    {
+      file: SESSION_START_PS,
+      name: "role list",
+      locate: between(PS_ROLES_OPEN, PS_ROLES_CLOSE),
+      render: () => psSheetRoles(models),
     },
     {
       file: skillFile("setup-pstack").replace("SKILL.md", "copilot.md"),
