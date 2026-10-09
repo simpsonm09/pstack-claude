@@ -300,12 +300,14 @@ describe.skipIf(process.platform !== "win32" && !required)("Windows Copilot Sess
     });
   });
 
-  test("escapes quotes, backslashes, and tabs in the texts it adds, as the POSIX hook does", () => {
-    const odd = 'a "quote", a back\\slash, and a\ttab';
+  // json.awk drops control characters other than tab and carriage return, and
+  // DEL; the POSIX comparison holds the PowerShell side to the same output.
+  test("escapes quotes, backslashes, and tabs, and drops other control characters, as the POSIX hook does", () => {
+    const odd = 'a "quote", a back\\slash, and a\ttab\u0001 and\u007f';
     withCopilotPlugin({}, (fixture) => {
       writeFileSync(join(fixture.plugin, "hooks/session-start-copilot-setup.md"), `${odd}\n`);
       const context = JSON.parse(expectSameAsPosix(fixture).toString("utf8")).additionalContext;
-      expect(context).toContain(`\n\n${odd}\n</EXTREMELY_IMPORTANT>`);
+      expect(context).toContain('\n\na "quote", a back\\slash, and a\ttab and\n</EXTREMELY_IMPORTANT>');
     });
   });
 
