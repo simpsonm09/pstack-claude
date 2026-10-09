@@ -10,13 +10,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const pluginRoot = fileURLToPath(new URL("../plugins/pstack/", import.meta.url));
-const preToolUse = JSON.parse(readFileSync(join(pluginRoot, "hooks/copilot-hooks.json"), "utf8")).hooks.PreToolUse;
-const command = preToolUse[0].hooks[0].command;
+const preToolUse = JSON.parse(readFileSync(join(pluginRoot, "hooks/copilot-hooks.json"), "utf8")).hooks.preToolUse;
+const command = preToolUse[0].bash;
 const allow = '{"permissionDecision":"allow"}\n';
 const playbook = join(pluginRoot, "skills/poteto-mode/playbooks/bug-fix.md");
 
-// Copilot sends Claude-format input to PascalCase hooks (observed on Copilot
-// CLI 1.0.89): tool_name is the Claude name, so `view` arrives as `Read`.
+// The hook also reads the Claude-format input that PascalCase hooks received
+// (Copilot CLI 1.0.89), where tool_name is the Claude name, so `view` arrives
+// as `Read`. The shipped flat file gets the native toolName form.
 const claudeInput = (tool, path) =>
   JSON.stringify({ hook_event_name: "PreToolUse", cwd: "/work", tool_name: tool, tool_input: { path } });
 

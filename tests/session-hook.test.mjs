@@ -16,14 +16,17 @@ const codexManifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin/pl
 const copilotManifest = JSON.parse(readFileSync(join(pluginRoot, ".github/plugin/plugin.json"), "utf8"));
 const models = JSON.parse(readFileSync(join(pluginRoot, "models.json"), "utf8"));
 
-// Claude Code loads hooks/hooks.json by convention; Codex and GitHub Copilot
-// load the file their manifests name.
-const sessionStart = Object.fromEntries(
-  Object.entries({ claude: "hooks/hooks.json", codex: codexManifest.hooks, copilot: copilotManifest.hooks }).map(([runtime, file]) => [
-    runtime,
-    JSON.parse(readFileSync(join(pluginRoot, file), "utf8")).hooks.SessionStart[0],
-  ]),
-);
+// Claude Code loads hooks/hooks.json by convention; Codex loads the file its
+// manifest names. Copilot's file is flat: camelCase events, and each hook
+// carries a `bash` command for macOS and Linux and a `powershell` one for Windows.
+const hooksFile = (file) => JSON.parse(readFileSync(join(pluginRoot, file), "utf8"));
+const sessionStart = {
+  claude: hooksFile("hooks/hooks.json").hooks.SessionStart[0],
+  codex: hooksFile(codexManifest.hooks).hooks.SessionStart[0],
+  copilot: hooksFile(copilotManifest.hooks).hooks.sessionStart[0],
+};
+// The command each runtime's SessionStart hook runs on macOS and Linux.
+const shellCommand = (name) => (name === "copilot" ? sessionStart.copilot.bash : sessionStart[name].hooks[0].command);
 
 // CODEX_HOME and CLAUDE_CONFIG_DIR are only present when the user has
 // relocated that runtime's directory. PLUGIN_ROOT is a generic name any shell
@@ -52,7 +55,7 @@ const runtimes = {
   },
 };
 
-function runHook(runtime, sheet, command = sessionStart[runtimes[runtime].hooks].hooks[0].command) {
+function runHook(runtime, sheet, command = shellCommand(runtimes[runtime].hooks)) {
   const home = mkdtempSync(join(tmpdir(), "pstack-hook-"));
   const { sheetDir, env } = runtimes[runtime];
   const sheetRoot = join(home, sheetDir);
@@ -78,7 +81,8 @@ describe("SessionStart hook", () => {
     expect(codexManifest.hooks).toBe("./hooks/codex-hooks.json");
     expect(sessionStart.claude.matcher).toBe("startup|resume|clear|compact");
     expect(sessionStart.codex.matcher).toBe("startup|resume|clear|compact");
-    expect(sessionStart.copilot.matcher).toBe("startup|resume|clear|compact");
+    // Copilot's flat hook has no matcher, so every session source runs it.
+    expect(sessionStart.copilot.matcher).toBeUndefined();
   });
 
   test("names only skills that exist", () => {
@@ -158,7 +162,7 @@ function copilotContext(sheet) {
 describe("Copilot SessionStart context", () => {
   test("the Copilot manifest names its own hooks file", () => {
     expect(copilotManifest.hooks).toBe("hooks/copilot-hooks.json");
-    expect(sessionStart.copilot.hooks[0].command).toBe('"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot');
+    expect(sessionStart.copilot.bash).toBe('"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot');
   });
 
   test("a valid sheet adds every role line, in models.json order, and no setup note", () => {
@@ -210,7 +214,7 @@ describe("Copilot SessionStart context", () => {
       cpSync(join(pluginRoot, "skills/setup-pstack/scripts"), join(root, "skills/setup-pstack/scripts"), { recursive: true });
       const odd = 'a "quote", a back\\slash, and a\ttab';
       writeFileSync(join(root, "hooks/session-start-copilot-setup.md"), `${odd}\n`);
-      const r = spawnSync("sh", ["-c", sessionStart.copilot.hooks[0].command], {
+      const r = spawnSync("sh", ["-c", shellCommand("copilot")], {
         env: { PATH: process.env.PATH, HOME: root, COPILOT_PLUGIN_ROOT: root },
         encoding: "utf8",
       });
@@ -248,7 +252,7 @@ describe("Copilot SessionStart context", () => {
     const home = mkdtempSync(join(tmpdir(), "pstack-hook-"));
     try {
       const run = (runtime) =>
-        spawnSync("sh", ["-c", sessionStart[runtime].hooks[0].command], {
+        spawnSync("sh", ["-c", shellCommand(runtime)], {
           env: { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_ROOT: pluginRoot, COPILOT_PLUGIN_ROOT: pluginRoot },
           encoding: "utf8",
         }).stdout;

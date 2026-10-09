@@ -859,13 +859,36 @@ function shapeFaults(schema, value, subject) {
     );
 }
 
+// GitHub Copilot's native hooks file: one flat object per event, with a `bash`
+// command for macOS and Linux, a `powershell` command for Windows, or both.
+// Copilot reads PascalCase events as Claude Code's format instead, so the
+// Copilot file never uses that shape.
+const FLAT_HOOK = Type.Object(
+  {
+    type: Type.Literal("command"),
+    matcher: Type.Optional(Type.String()),
+    bash: Type.Optional(Type.String()),
+    powershell: Type.Optional(Type.String()),
+    timeoutSec: Type.Optional(Type.Number()),
+  },
+  { additionalProperties: false },
+);
+// Each hook is checked on its own, below, so a fault names its event.
+const FLAT_HOOKS_FILE = Type.Object(
+  { version: Type.Literal(1), hooks: Type.Record(Type.String(), Type.Array(Type.Unknown())) },
+  { additionalProperties: false },
+);
+
 // A hooks file must have the documented shape, every ${<root>}/<path> a
 // command hook names must exist in the plugin, and one the command executes
 // directly must be executable, or the SessionStart hook fails silently for
 // every user.
 // The root is the variable the runtime exports with the plugin's directory.
-export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", root = "CLAUDE_PLUGIN_ROOT" }) {
+// `format` is "copilot" for the flat file, and the nested Claude Code shape
+// otherwise.
+export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", root = "CLAUDE_PLUGIN_ROOT", format = "claude" }) {
   const raw = JSON.parse(hooksJson);
+  if (format === "copilot") return validateFlatHooks(raw, { statOf, file, root });
   const faults = shapeFaults(HOOKS_FILE, raw, "file");
   if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
   for (const [event, groups] of Object.entries(raw.hooks)) {
@@ -888,6 +911,46 @@ export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", ro
           continue;
         }
         const executed = command.replace(/^"/, "").startsWith(`\${${root}}/`);
+        refs.forEach((rel, i) => {
+          const st = statOf(rel);
+          if (!st) faults.push(`${event}: ${rel} does not exist in the plugin`);
+          else if (i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
+        });
+      }
+    }
+  }
+  if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
+}
+
+// The flat file's `bash` command names its script as ${<root>}/<path>, and its
+// `powershell` command as $env:<root>/<path>. Only a `bash` script that runs
+// directly needs the executable bit; PowerShell runs its script with -File.
+function validateFlatHooks(raw, { statOf, file, root }) {
+  const faults = shapeFaults(FLAT_HOOKS_FILE, raw, "file");
+  if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
+  const forms = {
+    bash: { pattern: new RegExp(`\\$\\{${root}\\}/([^"\\s]+)`, "g"), names: `\${${root}}` },
+    powershell: { pattern: new RegExp(`\\$env:${root}/([^"\\s]+)`, "g"), names: `$env:${root}` },
+  };
+  for (const [event, hooks] of Object.entries(raw.hooks)) {
+    for (const hook of hooks) {
+      const shape = shapeFaults(FLAT_HOOK, hook, "hook");
+      if (shape.length) {
+        faults.push(...shape.map((fault) => `${event}: ${fault}`));
+        continue;
+      }
+      if (hook.bash === undefined && hook.powershell === undefined) {
+        faults.push(`${event}: hook needs a bash or a powershell command`);
+      }
+      for (const [key, { pattern, names }] of Object.entries(forms)) {
+        const command = hook[key];
+        if (command === undefined) continue;
+        const refs = [...command.matchAll(pattern)].map((m) => m[1]);
+        if (!refs.length) {
+          faults.push(`${event}: ${key} command does not reference ${names}: ${command}`);
+          continue;
+        }
+        const executed = key === "bash" && command.replace(/^"/, "").startsWith(`\${${root}}/`);
         refs.forEach((rel, i) => {
           const st = statOf(rel);
           if (!st) faults.push(`${event}: ${rel} does not exist in the plugin`);
@@ -1083,11 +1146,11 @@ export function problems(root, models) {
   const hooksFiles = [
     { file: "hooks/hooks.json" },
     ...packages.flatMap(({ runtime, manifest }) =>
-      (runtime.hooks?.(manifest) ?? []).map((file) => ({ file, root: runtime.pluginRootVar })),
+      (runtime.hooks?.(manifest) ?? []).map((file) => ({ file, root: runtime.pluginRootVar, format: runtime.hooksFormat })),
     ),
   ];
-  for (const { file, root } of hooksFiles) {
-    attempt(() => validateHooks(readFileSync(join(pluginRoot, file), "utf8"), { statOf, file, root }));
+  for (const { file, root, format } of hooksFiles) {
+    attempt(() => validateHooks(readFileSync(join(pluginRoot, file), "utf8"), { statOf, file, root, format }));
   }
   return failures;
 }

@@ -196,6 +196,60 @@ describe("validateHooks", () => {
     );
   });
 
+  describe("Copilot's flat file", () => {
+    const flat = (hook, event = "sessionStart") => JSON.stringify({ version: 1, hooks: { [event]: [{ type: "command", ...hook }] } });
+    const copilot = { format: "copilot", root: "COPILOT_PLUGIN_ROOT", file: "hooks/copilot-hooks.json" };
+    const ps1 = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:COPILOT_PLUGIN_ROOT/hooks/session-start-copilot.ps1\"";
+    const statOf = (rel) => (rel.endsWith(".sh") ? exec : rel.endsWith(".ps1") ? plain : null);
+
+    test("accepts a bash command, a powershell command, or both, each under its root", () => {
+      const bash = '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot';
+      expect(() => validateHooks(flat({ bash, timeoutSec: 30 }), { ...copilot, statOf })).not.toThrow();
+      expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf })).not.toThrow();
+      expect(() => validateHooks(flat({ bash, powershell: ps1 }), { ...copilot, statOf })).not.toThrow();
+      expect(() => validateHooks(flat({ bash, matcher: "view|task|bash" }, "preToolUse"), { ...copilot, statOf })).not.toThrow();
+    });
+
+    test("names a form that does not reference the runtime's root", () => {
+      expect(() => validateHooks(flat({ bash: '"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"' }), { ...copilot, statOf })).toThrow(
+        "sessionStart: bash command does not reference ${COPILOT_PLUGIN_ROOT}",
+      );
+      expect(() => validateHooks(flat({ powershell: '"${COPILOT_PLUGIN_ROOT}/hooks/session-start-copilot.ps1"' }), { ...copilot, statOf })).toThrow(
+        "sessionStart: powershell command does not reference $env:COPILOT_PLUGIN_ROOT",
+      );
+    });
+
+    test("checks each script exists, and only a bash script run directly is executable", () => {
+      const bash = '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot';
+      expect(() => validateHooks(flat({ bash }), { ...copilot, statOf: () => plain })).toThrow("hooks/session-start.sh is not executable");
+      expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf: () => null })).toThrow(
+        "sessionStart: hooks/session-start-copilot.ps1 does not exist in the plugin",
+      );
+      expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf: () => plain })).not.toThrow();
+    });
+
+    test("faults a hook with neither command, and a key no flat hook documents", () => {
+      expect(() => validateHooks(flat({}), { ...copilot, statOf })).toThrow("sessionStart: hook needs a bash or a powershell command");
+      expect(() => validateHooks(flat({ bash: "x", commandWindows: "y" }), { ...copilot, statOf })).toThrow(
+        "sessionStart: unknown key commandWindows",
+      );
+      expect(() => validateHooks(flat({ command: "x" }), { ...copilot, statOf })).toThrow("sessionStart: unknown key command");
+    });
+
+    test("faults a file that is not version 1 with an events object", () => {
+      expect(() => validateHooks(JSON.stringify({ version: 2, hooks: {} }), { ...copilot, statOf })).toThrow("hooks/copilot-hooks.json");
+      expect(() => validateHooks(JSON.stringify({ hooks: { sessionStart: [] } }), { ...copilot, statOf })).toThrow("hooks/copilot-hooks.json");
+      expect(() => validateHooks(JSON.stringify({ version: 1, hooks: { sessionStart: {} } }), { ...copilot, statOf })).toThrow(
+        "hooks.sessionStart must be array",
+      );
+    });
+
+    test("rejects the nested Claude shape where the flat file is required", () => {
+      const nested = JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh"' }] }] } });
+      expect(() => validateHooks(nested, { ...copilot, statOf })).toThrow();
+    });
+  });
+
   test("faults an event whose value is not a list of matcher groups", () => {
     expect(() => validateHooks(JSON.stringify({ hooks: { SessionStart: {} } }), { statOf: () => exec })).toThrow(
       "hooks/hooks.json:\n  hooks.SessionStart must be array",

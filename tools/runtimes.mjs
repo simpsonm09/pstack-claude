@@ -19,7 +19,8 @@ const OPENCODE_MAPPING = `${SKILLS}/poteto-mode/references/opencode-tools.md`;
 // Adaptation section. `manifest` is the file the generator stamps VERSION
 // into, `validate` checks the runtime's packaging against the tree once that
 // manifest parses, and `hooks` lists the hooks files the manifest names,
-// relative to the plugin root. GitHub Copilot stamps preambles but has no
+// relative to the plugin root, in the shape `hooksFormat` names (Copilot's flat
+// file; the nested Claude Code shape when it is unset). GitHub Copilot stamps preambles but has no
 // prompts directory, since its CLI and app list plugin skills as slash commands
 // themselves, and no models.json block, since it ships no default models.
 // OpenCode is the same: no preamble, prompts, or models.json block, and a
@@ -58,6 +59,7 @@ export const RUNTIMES = [
     validate: ({ manifest, read, pathExists }) =>
       validateCopilotManifest(manifest, { claude: JSON.parse(read(`${PLUGIN}/.claude-plugin/plugin.json`)), pathExists }),
     hooks: (manifest) => [manifest.hooks],
+    hooksFormat: "copilot",
     pluginRootVar: "COPILOT_PLUGIN_ROOT",
   },
   {
