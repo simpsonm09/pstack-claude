@@ -88,7 +88,9 @@ Codex and GitHub Copilot run a PowerShell form of their session hook on Windows,
 | GitHub Copilot | The [`session-start-copilot.ps1`](../plugins/pstack/hooks/session-start-copilot.ps1) script, through the `powershell` key. | [`pre-tool-use-windows.ps1`](../plugins/pstack/hooks/pre-tool-use-windows.ps1) makes no decision. The POSIX rules in `pre-tool-use.sh` have no PowerShell port. |
 | Pi, OpenCode | Not a shell hook. Each is a TypeScript extension or plugin entry. | Not applicable |
 
-Copilot's hooks file uses Copilot's native flat form. Each hook names both a `bash` command and a `powershell` command, because Copilot runs the `bash` command on Windows through `/bin/bash`, where `COPILOT_PLUGIN_ROOT` is not set, and a hook with no `powershell` command then fails. The PowerShell scripts run with `-ExecutionPolicy Bypass`, as the Codex adapter does, and run under Windows PowerShell 5.1 and PowerShell 7. The Copilot session hook prints the same JSON as the POSIX hook for the same model sheet. Windows has no `view` approval, no script approval, and no `task` model check, because the POSIX rules are not ported.
+Copilot's hooks file uses Copilot's native flat form. Each hook names both a `bash` command and a `powershell` command. Copilot runs the `bash` command on Windows through `/bin/bash`, where `COPILOT_PLUGIN_ROOT` is not set, so a hook with no `powershell` command fails there.
+
+The PowerShell scripts run with `-ExecutionPolicy Bypass`, as the Codex adapter does, under Windows PowerShell 5.1 and PowerShell 7. The Copilot session hook prints the same JSON as the POSIX hook for the same model sheet. Windows has no `view` approval, no script approval, and no `task` model check, because the POSIX rules are not ported.
 
 ### Shared skills installation
 
