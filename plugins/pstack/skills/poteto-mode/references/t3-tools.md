@@ -51,7 +51,9 @@ Use the closest role from the `delegate_task` enum:
 
 ## The sheet
 
-The sheet is `pstack-t3-models.md` in the active host's config directory:
+Starting at the session's working directory and walking up its parent folders, use the first `.pstack` folder that contains either T3 file. Read both files from that same folder; a missing file there is absent and does not fall back to the host. If no such folder exists, use the host's per-user config folder.
+
+The host's per-user config directory is:
 
 | Host | Config directory |
 | --- | --- |

@@ -69,13 +69,9 @@ These checks cover skill discovery. Delegation and multi-model workflows remain 
 
 The T3 overlay is optional. Before dispatch, a skill checks the live tool list for both final name segments `delegate_task` and `orchestrator_capabilities`. If either is absent, the host mapping and native model sheet apply unchanged. If both are present, [the T3 mapping](../plugins/pstack/skills/poteto-mode/references/t3-tools.md) controls dispatch, models, schedules and pull request watching.
 
-Run `setup-pstack` in that session to choose targets and options. If the allow-list is absent, setup warns that children may run without the pstack layer or access gate. Unset roles inherit the parent's model. The sheet is `pstack-t3-models.md` in the active host config directory; the allow-list, when installed, is `pstack-t3-instances.json` beside it:
+Run `setup-pstack` in that session to choose targets and options. If the allow-list is absent, setup warns that children may run without the pstack layer or access gate. Unset roles inherit the parent's model.
 
-- Claude Code: `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-t3-models.md`.
-- Codex: `${CODEX_HOME:-~/.codex}/pstack-t3-models.md`.
-- GitHub Copilot: `${COPILOT_HOME:-~/.copilot}/pstack-t3-models.md`.
-- OpenCode: `${XDG_CONFIG_HOME:-~/.config}/opencode/pstack-t3-models.md`.
-- Pi: `${PI_CODING_AGENT_DIR:-~/.pi/agent}/pstack-t3-models.md`.
+Starting at the session's working directory and walking up its parent folders, use the first `.pstack` folder that contains either T3 file. Read both files from that same folder; a missing file there is absent and does not fall back to the host. If no such folder exists, use the host's per-user config folder.
 
 Claude Code and Codex are documented T3 dispatching parents. OpenCode exposes the tools in a measured session, but a dispatch has not been measured. Copilot and Pi remain unverified as parents.
 ### Automatic routing
