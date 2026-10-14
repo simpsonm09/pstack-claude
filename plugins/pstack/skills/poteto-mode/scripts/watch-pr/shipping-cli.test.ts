@@ -30,7 +30,8 @@ function fixture(
       state: "OPEN",
       headRefOid: "head",
       baseRefName: "main",
-      baseRefOid: "base",
+      baseRefOid: "stored-base",
+      baseRef: { target: { oid: "base" } },
       autoMergeRequest: { enabledAt: "now" },
       mergeQueueEntry: { id: "queue" },
       mergeCommit: null,
@@ -106,7 +107,7 @@ it("the CLI refuses a changed base without cancelling anything", () =>
     writeFileSync(saved, JSON.stringify(inspected.output));
     const changed = {
       ...JSON.parse(readFileSync(file, "utf8")),
-      baseRefOid: "advanced",
+      baseRef: { target: { oid: "advanced" } },
     };
     writeFileSync(file, JSON.stringify(changed));
     const result = run("cancel-pending", "--record", saved);
@@ -124,3 +125,35 @@ it("the CLI treats a missing queue field as unavailable", () =>
     expect(result.status).toBe(1);
     expect(result.output.kind).toBe("unavailable");
   }));
+
+for (const state of ["CLOSED", "MERGED"]) {
+  it(`the CLI inspects a ${state} PR with a deleted base and refuses cancellation`, () =>
+    fixture((run, file, dir) => {
+      const inspected = run("inspect", "--repo", "owner/repo", "--pr", "1");
+      expect(inspected.status).toBe(0);
+      const saved = join(dir, "record.json");
+      writeFileSync(saved, JSON.stringify(inspected.output));
+      const terminal = {
+        ...JSON.parse(readFileSync(file, "utf8")),
+        state,
+        baseRef: null,
+        autoMergeRequest: null,
+        mergeQueueEntry: null,
+        mergeCommit: state === "MERGED" ? { oid: "merged" } : null,
+      };
+      writeFileSync(file, JSON.stringify(terminal));
+      const record = {
+        state,
+        revision: { baseRefOid: "stored-base" },
+        mergeCommitOid: state === "MERGED" ? "merged" : null,
+      };
+
+      const observed = run("inspect", "--repo", "owner/repo", "--pr", "1");
+      expect(observed.status).toBe(0);
+      expect(observed.output).toMatchObject({ kind: "inspected", record });
+      const cancelled = run("cancel-pending", "--record", saved);
+      expect(cancelled.status).toBe(1);
+      expect(cancelled.output).toMatchObject({ kind: "not-open", record });
+      expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(terminal);
+    }));
+}

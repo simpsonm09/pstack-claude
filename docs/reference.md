@@ -4,7 +4,7 @@ Start with the [README](../README.md) for installation and your first task.
 
 ## Slash commands
 
-The package includes 58 skill directories: 34 public skills and 24 `principle-*` references. Claude Code uses `/pstack:<name>`, and Pi uses `/skill:<name>`. In Codex, request a skill by name or install the [optional shortcuts](#codex) for the `/name` form below.
+The package includes 61 skill directories: 37 public skills and 24 `principle-*` references. Claude Code uses `/pstack:<name>`, and Pi uses `/skill:<name>`. In Codex, request a skill by name or install the [optional shortcuts](#codex) for the `/name` form below.
 
 Find each skill's instructions in the [skills tree](../plugins/pstack/skills/).
 
@@ -30,6 +30,7 @@ Find each skill's instructions in the [skills tree](../plugins/pstack/skills/).
 | `/show-me-your-work` | log decisions to a reviewable tsv decision trail |
 | `/blast-radius` | find what a change could break beyond the diff and prove safety by running code |
 | `/recall` | catch up on recent working context from chat history, live state, and the shared record |
+| `/ketchup` | catch up on everything in this chat since your last message, with an executive summary for each action item |
 | `/setup-pstack` | configure pstack per-role model choices |
 | `/poteto-help` | answer a question about pstack with the prompt to send and the file the answer came from |
 | `/unslop` | clean up writing by removing AI tells |
@@ -38,7 +39,9 @@ Find each skill's instructions in the [skills tree](../plugins/pstack/skills/).
 | `/maintain-verification-skill` | re-sync a drifted verification skill and its feature map |
 | `/deslop` | deslop a diff before commit |
 | `/babysit` | monitor an open PR, fix CI/comments, keep it merge-ready |
+| `/thermo-nuclear-review` | audit a branch's changes for bugs, breakage, security issues, devex regressions, and feature-gate leaks |
 | `/thermo-nuclear-code-quality-review` | extremely strict maintainability audit |
+| `/thermos` | run both thermo-nuclear reviews as parallel subagents and synthesize their findings |
 | `/make-pr-easy-to-review` | clean noisy history and improve PR description before review |
 | `/fix-ci` | find failing PR checks, inspect logs, apply focused fixes |
 | `/fix-merge-conflicts` | non-interactively resolve merge conflicts, validate, finalize |
@@ -53,7 +56,7 @@ All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only i
 | --- | --- |
 | Claude Code | Install the marketplace plugin. Skills use Claude tool names and model defaults; the plugin installs automatic routing. |
 | Codex | Install the native plugin through the repository's marketplace and trust its hook through `/hooks`. The [Codex mapping](../plugins/pstack/skills/poteto-mode/references/codex-tools.md) translates Claude tools and model names. Shared skill symlinks were also detected in a live session. |
-| Pi | Install the repository as a Pi package with `pi install`. The [Pi extension](../plugins/pstack/pi/index.ts) registers the subagent, question, and wake-up tools and `/loop`, and the [Pi mapping](../plugins/pstack/skills/poteto-mode/references/pi-tools.md) translates Claude tools and model names. The [equivalence table](pi-equivalence.md) records each Claude Code mechanism and how it was verified on Pi 1.0. |
+| Pi | Install the repository as a Pi package with `pi install`. The [Pi extension](../plugins/pstack/pi/index.ts) registers the subagent, question, and wake-up tools and `/loop`, and the [Pi mapping](../plugins/pstack/skills/poteto-mode/references/pi-tools.md) translates Claude tools and model names. The [equivalence table](pi-equivalence.md) records each Claude Code mechanism and how it was verified on Pi 1.1. |
 | GitHub Copilot | Install the plugin through the repository's marketplace; the CLI and the GitHub Copilot app share it. The [Copilot mapping](../plugins/pstack/skills/poteto-mode/references/copilot-tools.md) translates Claude tools, paths, and model roles, and maps app-only tools to CLI fallbacks. Install, routing, agent dispatch, and first-run setup are smoke-tested on the CLI; see [GitHub Copilot](#github-copilot). |
 | Prime Agent | Its documentation describes shared-directory discovery; it has not been tested in a live session. Choose tools and models through Prime's configuration. |
 | opencode | The [OpenCode build](#opencode) is a plugin entry that registers the shared skills and injects the routing, with three agent profiles and an [OpenCode mapping](../plugins/pstack/skills/poteto-mode/references/opencode-tools.md). Its files and checks run offline; no live OpenCode 2.0 session has run them. Discovery of a linked skill was verified on version 1.18.25. |
@@ -270,11 +273,11 @@ CI also checks shell scripts, workflows, Markdown, relative links, and the bundl
 
 ### Port scope and attribution
 
-The skill tree is synced against upstream `df58112` (v0.15.15).
+The skill tree is synced against upstream `997ffc7` (v0.15.21). The thermos skills and agents are synced against `118e73b` (thermos 1.0.0).
 
-This repository ports Lauren Tan's pstack from Cursor to Claude Code and shares the skills with other runtimes. It includes seven cursor-team-kit skills and an independently authored `babysit` skill. The port supplies Claude Code plugin registration and routing, Codex manifests and shortcuts, the Codex tool mapping, the Pi package, extension, and tool mapping, the GitHub Copilot hooks and tool mapping, and the OpenCode plugin entry, agent profiles, and tool mapping.
+This repository ports Lauren Tan's pstack from Cursor to Claude Code and shares the skills with other runtimes. It includes six cursor-team-kit skills, the three thermos skills with their two review subagents, and an independently authored `babysit` skill. The port supplies Claude Code plugin registration and routing, Codex manifests and shortcuts, the Codex tool mapping, the Pi package, extension, and tool mapping, the GitHub Copilot hooks and tool mapping, and the OpenCode plugin entry, agent profiles, and tool mapping.
 
-Cursor-specific automations, sticky-mode metadata, the Grok Bot UI workflow, and the Cursor UI tutorial are excluded. [tools/upstream.json](../tools/upstream.json) records the revisions and exclusions, [tools/substitutions.json](../tools/substitutions.json) holds the Cursor-to-Claude rewrite rules, and [CHANGES.md](../CHANGES.md) records each release. The bundled `thermo-nuclear-code-quality-review` provides a maintainability review when a workflow calls for one.
+Cursor-specific automations, sticky-mode metadata, the Grok Bot UI workflow, and the Cursor UI tutorial are excluded. [tools/upstream.json](../tools/upstream.json) records the revisions and exclusions, [tools/substitutions.json](../tools/substitutions.json) holds the Cursor-to-Claude rewrite rules, and [CHANGES.md](../CHANGES.md) records each release. The bundled `thermo-nuclear-code-quality-review` provides a maintainability review when a workflow calls for one, `thermo-nuclear-review` a correctness and security audit, and `thermos` runs both as parallel subagents.
 
 For skill changes, follow the [sync boundary](../CONTRIBUTING.md#the-sync-boundary). Runtime adaptations and workflow changes both land here, and a workflow change is declared as a fork.
 

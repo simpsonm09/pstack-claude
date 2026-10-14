@@ -29,6 +29,7 @@ const requiredPortableFiles = [
   "poteto-mode/references/agents/comment-sicko.md",
   "poteto-mode/references/licenses/LICENSE",
   "poteto-mode/references/licenses/LICENSE-cursor-team-kit",
+  "poteto-mode/references/licenses/LICENSE-thermos",
   "poteto-mode/references/licenses/NOTICE.md",
 ];
 

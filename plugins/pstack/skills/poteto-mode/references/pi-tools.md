@@ -32,7 +32,7 @@ pstack skills are written in Claude Code tool language (the `Skill` tool, the `A
 
 poteto-mode's Subagents section applies on Pi through the `agent` tool:
 
-- `subagent_type` takes the same values. `pstack:poteto-agent`, `pstack:comment-sicko`, `pstack:poteto-agent-<level>`, and `pstack:effort-<level>` resolve to the plugin's agent files. `general-purpose`, or no `subagent_type`, runs a child with no agent file. Claude Code's built-in types such as `Explore` and `Plan` do not exist on Pi, so use `general-purpose` and put the constraint in the prompt. An unknown type errors and lists the valid ones.
+- `subagent_type` takes the same values. `pstack:poteto-agent`, `pstack:comment-sicko`, `pstack:thermo-nuclear-review-subagent`, `pstack:thermo-nuclear-code-quality-review-subagent`, `pstack:poteto-agent-<level>`, and `pstack:effort-<level>` resolve to the plugin's agent files. `general-purpose`, or no `subagent_type`, runs a child with no agent file. Claude Code's built-in types such as `Explore` and `Plan` do not exist on Pi, so use `general-purpose` and put the constraint in the prompt. An unknown type errors and lists the valid ones.
 - `readonly: true`, which the `how` and `interrogate` panels set, runs the child without the `edit` and `write` tools. It keeps `bash`, so a reviewer can still run `git diff`; say in the prompt that it must not change files.
 - Each child is its own `pi --mode rpc` process in your working directory, and the extension sends it the prompt on its stdin. It loads the packages and settings saved on disk, so it sees the pstack skills when pstack was installed with `pi install`. It does not inherit the parent's command-line flags, such as `-e`, `--api-key`, or a one-off `-a` project trust, so a pstack loaded only through `-e` gives children no extension.
 - A child can start its own agents, down to three layers below the main session, as on Claude Code. A child at the third layer runs without the `agent` tool.
@@ -54,7 +54,7 @@ Skills name models by the Claude aliases in their Models sections. On Pi, pass t
 | `opus` | `anthropic/claude-opus-5-5` | `openai/gpt-6.1-sol` | `openai-codex/gpt-6.1-sol` |
 | `fable` | `anthropic/claude-fable-5-1` | `openai/gpt-6-astra` | `openai-codex/gpt-6-astra` |
 | `sonnet` | `anthropic/claude-sonnet-5-5` | `openai/gpt-6-sol` | `openai-codex/gpt-6-sol` |
-| `haiku` | `anthropic/claude-haiku-4-5` | `openai/gpt-6-luna` | `openai-codex/gpt-6-luna` |
+| `haiku` | `anthropic/claude-haiku-5-5` | `openai/gpt-6-luna` | `openai-codex/gpt-6-luna` |
 
 Pi warns that Anthropic bills Claude used through Pi per token, as extra usage, even on a Claude subscription. Pi shows that warning only in interactive mode, never for the `pi --mode rpc` children the `agent` tool runs.
 

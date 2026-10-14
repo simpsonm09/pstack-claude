@@ -156,6 +156,8 @@ function Test-Sheet([string[]]$Lines) {
 # reads it.
 function Get-HookText([string]$Name) {
     $text = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot $Name), $Utf8)
+    # Match POSIX awk's getline, which removes the CR from Windows CRLF lines.
+    $text = $text.Replace("`r`n", "`n")
     if ($text.EndsWith("`n")) { $text = $text.Substring(0, $text.Length - 1) }
     return $text
 }

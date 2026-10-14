@@ -22,6 +22,61 @@
       "rationale": "Claude Code's system prompt does not name a transcripts directory, so the port names the path and its encoding"
     },
     {
+      "pattern": "Typical flow: in **one** message, run two `Task` calls in parallel — `subagent_type: \"shell\"` and `subagent_type: \"explore\"` — to collect `git diff <base>...HEAD` output and full contents of changed files (default base `main`).",
+      "replacement": "Typical flow: run `git diff <base>...HEAD` (default base `main`) and read the full contents of the changed files, through the `Explore` agent when the set is large.",
+      "rationale": "Claude Code has no shell or explore subagent types; the parent runs git itself and its built-in Explore agent reads bulk; must precede the `Task` rule"
+    },
+    {
+      "pattern": "You are a **Task subagent**.",
+      "replacement": "You are an **`Agent` subagent**.",
+      "rationale": "the article changes with the tool name; must precede the Task subagent rule"
+    },
+    {
+      "pattern": "Invoked via Task after a parent gathers diff and file contents.",
+      "replacement": "Invoked through the `Agent` tool after a parent gathers diff and file contents.",
+      "rationale": "the Task tool is the Agent tool on Claude Code, and the port writes the tool name in backticks"
+    },
+    {
+      "pattern": "comments from BugBot or others present",
+      "replacement": "comments from a review bot or others present",
+      "rationale": "the port routes any automated PR-review bot, not only Cursor's Bugbot"
+    },
+    {
+      "pattern": "Flag issues found by BugBot or others",
+      "replacement": "Flag issues found by a review bot or others",
+      "rationale": "the port routes any automated PR-review bot, not only Cursor's Bugbot"
+    },
+    {
+      "pattern": "Incorporate BugBot or human threads",
+      "replacement": "Incorporate review-bot or human threads",
+      "rationale": "the port routes any automated PR-review bot, not only Cursor's Bugbot"
+    },
+    {
+      "pattern": "subagent_type: \"thermo-nuclear-review-subagent\"",
+      "replacement": "subagent_type: \"pstack:thermo-nuclear-review-subagent\"",
+      "rationale": "Claude Code dispatches plugin agents by their namespaced name"
+    },
+    {
+      "pattern": "subagent_type: \"thermo-nuclear-code-quality-review-subagent\"",
+      "replacement": "subagent_type: \"pstack:thermo-nuclear-code-quality-review-subagent\"",
+      "rationale": "Claude Code dispatches plugin agents by their namespaced name"
+    },
+    {
+      "pattern": "(shipped in the Thermos plugin)",
+      "replacement": "(shipped in this plugin)",
+      "rationale": "the port carries the thermos skills inside pstack, not as a separate plugin"
+    },
+    {
+      "pattern": "skill in the Thermos plugin.",
+      "replacement": "skill in this plugin.",
+      "rationale": "the port carries the thermos skills inside pstack, not as a separate plugin"
+    },
+    {
+      "pattern": "find this conversation's transcript in the `agent-transcripts/` directory the system prompt names.",
+      "replacement": "find this conversation's transcript in Claude Code's per-project transcripts directory at `~/.claude/projects/<encoded-cwd>/`.",
+      "rationale": "Cursor's system prompt names its agent-transcripts directory; Claude Code's does not, so the port names the path"
+    },
+    {
       "pattern": "Spawn Comment Sicko, fix",
       "replacement": "Spawn the comment-sicko subagent, fix",
       "rationale": "the menu description names the plugin agent by its file name"
@@ -88,9 +143,9 @@
       "rationale": "a project skill named verify replaces Claude Code's user-only bundled /verify (#71); must precede the .cursor/skills/ rule"
     },
     {
-      "pattern": "run `scripts/worktree-audit.sh`",
-      "replacement": "run `skills/poteto-mode/scripts/worktree-audit.mjs` under the installed plugin",
-      "rationale": "the port ships its own audit script; a skill-relative path does not resolve from the working directory"
+      "pattern": "run `scripts/worktree-audit.sh [-b <pr-base-ref>] [repo-path]` (principle-build-the-lever). Without `-b` it checks `MERGED` against `origin/HEAD`, so pass `-b origin/<branch>` when PRs target another branch.",
+      "replacement": "run `skills/poteto-mode/scripts/worktree-audit.mjs` under the installed plugin (principle-build-the-lever).",
+      "rationale": "the port ships its own audit script, which reads MERGED from each PR's state and needs no base ref; a skill-relative path does not resolve from the working directory"
     },
     {
       "pattern": "`.cursor/worktrees/myrepo/x`",
@@ -329,6 +384,11 @@
       "pattern": "subagent_type: generalPurpose",
       "replacement": "subagent_type: \"general-purpose\"",
       "rationale": "the built-in agent type, unbackticked inside a backticked parameter list"
+    },
+    {
+      "pattern": "subagent_type: \"comment-sicko\"",
+      "replacement": "subagent_type: \"pstack:comment-sicko\"",
+      "rationale": "Claude Code dispatches plugin agents by their namespaced name, and the bare comment-sicko id upstream adopted in #486 errors"
     },
     {
       "pattern": "subagent_type: \"poteto-agent\"",

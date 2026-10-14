@@ -4,7 +4,7 @@
     "pstack": {
       "upstreamPath": "pstack",
       "localPath": "plugins/pstack",
-      "sha": "df58112",
+      "sha": "997ffc7",
       "exclude": [
         ".cursor-plugin/",
         ".gitignore",
@@ -13,6 +13,7 @@
         "assets/",
         "automations/",
         "docs/",
+        "plugin.json",
         "skills/make-bot-ui/",
         "skills/poteto-mode/scripts/worktree-audit.sh"
       ]
@@ -30,9 +31,22 @@
         "pr-review-canvas/",
         "review-and-ship/",
         "run-smoke-tests/",
+        "thermo-nuclear-code-quality-review/",
         "verify-this/",
         "weekly-review/",
         "workflow-from-chats/"
+      ]
+    },
+    "thermos": {
+      "upstreamPath": "thermos",
+      "localPath": "plugins/pstack",
+      "sha": "118e73b0e196e4d49d5aade7ce6dd8985a621f68",
+      "exclude": [
+        ".cursor-plugin/",
+        "CHANGELOG.md",
+        "LICENSE",
+        "README.md",
+        "assets/"
       ]
     }
   }
