@@ -74,7 +74,7 @@ const PROMPT_RUNTIMES = RUNTIMES.filter((runtime) => runtime.prompts);
 const VERSIONED_MANIFESTS = [
   ".claude-plugin/marketplace.json",
   `${PLUGIN}/.claude-plugin/plugin.json`,
-  ...RUNTIMES.map((runtime) => runtime.manifest),
+  ...RUNTIMES.map((runtime) => runtime.manifest).filter(Boolean),
 ];
 
 export const PORTABLE_ASSETS = [
@@ -456,7 +456,7 @@ export function regions(models) {
       locate: fenceUnder("Write the override sheet", "markdown"),
       render: () => [overrideSheetBlock(models)],
     },
-    ...RUNTIMES.map((runtime) => ({
+    ...RUNTIMES.filter((runtime) => runtime.modelNames).map((runtime) => ({
       file: runtime.tools,
       name: "Model names section",
       locate: section("Model names"),
@@ -920,9 +920,9 @@ const FLAT_HOOKS_FILE = Type.Object(
 // The root is the variable the runtime exports with the plugin's directory.
 // `format` is "copilot" for the flat file, and the nested Claude Code shape
 // otherwise.
-export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", root = "CLAUDE_PLUGIN_ROOT", format = "claude" }) {
+export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", root = "CLAUDE_PLUGIN_ROOT", format = "claude", platform = process.platform }) {
   const raw = JSON.parse(hooksJson);
-  if (format === "copilot") return validateFlatHooks(raw, { statOf, file, root });
+  if (format === "copilot") return validateFlatHooks(raw, { statOf, file, root, platform });
   const faults = shapeFaults(HOOKS_FILE, raw, "file");
   if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
   for (const [event, groups] of Object.entries(raw.hooks)) {
@@ -948,7 +948,7 @@ export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", ro
         refs.forEach((rel, i) => {
           const st = statOf(rel);
           if (!st) faults.push(`${event}: ${rel} does not exist in the plugin`);
-          else if (i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
+          else if (platform !== "win32" && i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
         });
       }
     }
@@ -959,7 +959,7 @@ export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", ro
 // The flat file's `bash` command names its script as ${<root>}/<path>, and its
 // `powershell` command as $env:<root>/<path>. Only a `bash` script that runs
 // directly needs the executable bit; PowerShell runs its script with -File.
-function validateFlatHooks(raw, { statOf, file, root }) {
+function validateFlatHooks(raw, { statOf, file, root, platform }) {
   const faults = shapeFaults(FLAT_HOOKS_FILE, raw, "file");
   if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
   const forms = {
@@ -988,7 +988,7 @@ function validateFlatHooks(raw, { statOf, file, root }) {
         refs.forEach((rel, i) => {
           const st = statOf(rel);
           if (!st) faults.push(`${event}: ${rel} does not exist in the plugin`);
-          else if (i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
+          else if (platform !== "win32" && i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
         });
       }
     }
@@ -1115,14 +1115,14 @@ export function problems(root, models) {
     try {
       return check();
     } catch (err) {
-      failures.push(err.message);
+      failures.push(err.message.replaceAll("\\", "/"));
     }
   };
   const pluginRoot = join(root, PLUGIN);
   const skillsDir = join(root, SKILLS);
   const read = (rel) => readFileSync(join(root, rel), "utf8");
   const pathExists = (rel) => existsSync(join(root, rel));
-  const packages = RUNTIMES.map((runtime) =>
+  const packages = RUNTIMES.filter((runtime) => runtime.manifest).map((runtime) =>
     attempt(() => {
       const text = read(runtime.manifest);
       let manifest;
@@ -1144,7 +1144,7 @@ export function problems(root, models) {
   if (models) {
     attempt(() => {
       const strays = markdownFiles(skillsDir).flatMap((full) =>
-        strayModelSlugs(relative(root, full), readFileSync(full, "utf8"), models),
+        strayModelSlugs(relative(root, full).replaceAll("\\", "/"), readFileSync(full, "utf8"), models),
       );
       if (strays.length) {
         throw new Error(
@@ -1157,7 +1157,7 @@ export function problems(root, models) {
   attempt(() => {
     const leads = loadLeadLines(root);
     const strays = markdownFiles(skillsDir).flatMap((full) => {
-      const file = relative(root, full);
+      const file = relative(root, full).replaceAll("\\", "/");
       return readFileSync(full, "utf8")
         .split("\n")
         .flatMap((line, i) =>
@@ -1174,7 +1174,7 @@ export function problems(root, models) {
   });
   attempt(() => validateSkillsTree(skillsDir));
   attempt(() => validateProsePaths(skillsDir));
-  for (const packaged of packages) attempt(() => packaged.runtime.validate({ ...packaged, read, pathExists }));
+  for (const packaged of packages) if (packaged.runtime.validate) attempt(() => packaged.runtime.validate({ ...packaged, read, pathExists }));
   attempt(() => validatePluginLayout(pluginRoot));
   attempt(() => validateAgentFrontmatter(pluginRoot));
   const hooksFiles = [

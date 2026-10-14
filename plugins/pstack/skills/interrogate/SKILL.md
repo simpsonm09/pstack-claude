@@ -9,6 +9,8 @@ On Codex, read the [platform mapping](../poteto-mode/references/codex-tools.md),
 
 On GitHub Copilot, read the [platform mapping](../poteto-mode/references/copilot-tools.md), including its per-skill notes, before following this skill.
 
+Inside T3 Code (the live tool list has `delegate_task` and `orchestrator_capabilities`), follow [t3-tools.md](../poteto-mode/references/t3-tools.md) for dispatch, models, schedules and pull request watching. Otherwise ignore this line.
+
 Spawn one reviewer per configured model to adversarially review code changes. The adversarial signal comes from model diversity, not assigned personas. The deliverable is a synthesized verdict. Do NOT auto-apply changes.
 
 ## Step 1, Scope

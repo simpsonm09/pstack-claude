@@ -53,7 +53,20 @@ import { walk } from "../tools/validate-skills.mjs";
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const models = loadModels();
 const leads = loadLeadLines();
-const [codex, pi, copilot] = RUNTIMES;
+const [codex, pi, copilot, opencode, t3] = RUNTIMES;
+
+const noFileSymlinkPrivilege = (() => {
+  if (process.platform !== "win32") return false;
+  const dir = mkdtempSync(join(tmpdir(), "pstack-symlink-check-"));
+  try {
+    symlinkSync(join(dir, "target"), join(dir, "link"));
+    return false;
+  } catch {
+    return true;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+})();
 
 const lines = (text) => text.split("\n");
 const spanned = (locate, doc) => {
@@ -136,7 +149,7 @@ describe("regions", () => {
 describe("runtime model names", () => {
   test("each runtime's mapping file owns a stamped Model names section", () => {
     for (const runtime of RUNTIMES) {
-      expect(regions(models).filter((r) => r.file === runtime.tools).map((r) => r.name)).toEqual(["Model names section"]);
+      expect(regions(models).filter((r) => r.file === runtime.tools).map((r) => r.name)).toEqual(runtime.modelNames ? ["Model names section"] : []);
     }
   });
 
@@ -501,7 +514,7 @@ describe("lead lines", () => {
   });
 
   test("Codex and Copilot stamp a preamble on their noted skills, and Pi and OpenCode stamp none", () => {
-    expect(RUNTIMES.map((r) => r.name)).toEqual(["Codex", "Pi", "GitHub Copilot", "OpenCode"]);
+    expect(RUNTIMES.map((r) => r.name)).toEqual(["Codex", "Pi", "GitHub Copilot", "OpenCode", "T3 Code"]);
     expect(RUNTIMES[3].preamble).toBeNull();
     expect(codex.preamble).toBe(
       "On Codex, read the [platform mapping](../poteto-mode/references/codex-tools.md), including its per-skill notes, before following this skill.",
@@ -511,6 +524,27 @@ describe("lead lines", () => {
     );
     expect(pi.preamble).toBeNull();
     expect([...leads.values()].flat().filter((line) => line.includes("pi-tools.md"))).toEqual([]);
+  });
+
+  test("T3 stamps only the dispatching skills and preserves every native runtime preamble", () => {
+    const declared = noteSkills(t3, readFileSync(join(repoRoot, t3.tools), "utf8"));
+    expect(t3.name).toBe("T3 Code");
+    expect(t3.manifest).toBeUndefined();
+    expect(t3.key).toBeUndefined();
+    expect(t3.modelNames).toBeUndefined();
+    expect(models.t3).toBeUndefined();
+    expect(declared).toEqual(["arena", "architect", "automate-me", "babysit", "how", "interrogate", "maintain-verification-skill", "no-comments", "poteto-mode", "reflect", "setup-pstack", "swarm", "teach", "thermos", "why"]);
+    const stamped = [...leads].filter(([, values]) => values.includes(t3.preamble)).map(([file]) => file.replace("plugins/pstack/skills/", "").replace("/SKILL.md", ""));
+    expect(stamped.sort()).toEqual([...declared].sort());
+    expect(codex.preamble).toContain("On Codex");
+    expect(copilot.preamble).toContain("On GitHub Copilot");
+    expect(pi.preamble).toBeNull();
+    expect(opencode.preamble).toBeNull();
+    const overlap = readFileSync(join(repoRoot, "plugins/pstack/skills/interrogate/SKILL.md"), "utf8");
+    expect(overlap).toContain(codex.preamble);
+    expect(overlap).toContain(copilot.preamble);
+    expect(overlap).toContain(t3.preamble);
+    expect(t3.preamble).not.toMatch(/(?:claude-|gpt-|openai|anthropic|gemini|grok|instance[-/])/i);
   });
 
   test("a notes table lists its skills in row order and rejects a row without one", () => {
@@ -611,7 +645,8 @@ describe("plan, changes, apply", () => {
   const repoCopy = () => {
     const dir = scratch("pstack-generate-");
     cpSync(repoRoot, dir, { recursive: true, filter: (src) => ![".git", "node_modules"].includes(basename(src)) });
-    symlinkSync(join(repoRoot, "node_modules"), join(dir, "node_modules"));
+    if (process.platform === "win32") symlinkSync(join(repoRoot, "node_modules"), join(dir, "node_modules"), "junction");
+    else symlinkSync(join(repoRoot, "node_modules"), join(dir, "node_modules"));
     return dir;
   };
   const snapshot = (dir) => Object.fromEntries(walk(dir).map((path) => [path, readFileSync(path, "utf8")]));
@@ -685,7 +720,7 @@ describe("plan, changes, apply", () => {
     expect(changes(root, intended)).toEqual([]);
   });
 
-  test("apply refuses a symlink at a planned path before writing anything", () => {
+  test.skipIf(noFileSymlinkPrivilege)("apply refuses a symlink at a planned path before writing anything", () => {
     const root = scratch("pstack-apply-");
     const outside = join(scratch("pstack-outside-"), "target.md");
     writeFileSync(outside, "original");
@@ -697,7 +732,7 @@ describe("plan, changes, apply", () => {
     expect(existsSync(join(root, "out/a.md"))).toBe(false);
   });
 
-  test("apply removes a stray symlink in an owned directory without touching its target", () => {
+  test.skipIf(noFileSymlinkPrivilege)("apply removes a stray symlink in an owned directory without touching its target", () => {
     const root = scratch("pstack-apply-");
     const outside = scratch("pstack-outside-");
     writeFileSync(join(outside, "target.md"), "original");
@@ -709,7 +744,7 @@ describe("plan, changes, apply", () => {
     expect(readFileSync(join(outside, "target.md"), "utf8")).toBe("original");
   });
 
-  test("apply refuses a planned path under a symlinked directory", () => {
+  test.skipIf(noFileSymlinkPrivilege)("apply refuses a planned path under a symlinked directory", () => {
     const root = scratch("pstack-apply-");
     const outside = scratch("pstack-outside-");
     mkdirSync(join(root, "skills"));
@@ -723,7 +758,7 @@ describe("plan, changes, apply", () => {
     expect(readdirSync(outside)).toEqual([]);
   });
 
-  test("apply refuses a symlinked owned directory with no planned files and deletes nothing through it", () => {
+  test.skipIf(noFileSymlinkPrivilege)("apply refuses a symlinked owned directory with no planned files and deletes nothing through it", () => {
     const root = scratch("pstack-apply-");
     const outside = scratch("pstack-outside-");
     writeFileSync(join(outside, "keep.md"), "original");
@@ -882,7 +917,7 @@ describe("plan, changes, apply", () => {
     );
   });
 
-  test("--check reports a symlink at a planned path alongside the other failures and writes nothing", () => {
+  test.skipIf(noFileSymlinkPrivilege)("--check reports a symlink at a planned path alongside the other failures and writes nothing", () => {
     const root = repoCopy();
     const outside = join(scratch("pstack-outside-"), "target.md");
     writeFileSync(outside, "original");
@@ -956,7 +991,7 @@ describe("plan, changes, apply", () => {
     expect(check.stderr).toContain(`FAIL: ${failure}\n`);
   });
 
-  test("problems reports a hook path that resolves outside the plugin, through .. or through a symlink", () => {
+  test.skipIf(noFileSymlinkPrivilege)("problems reports a hook path that resolves outside the plugin, through .. or through a symlink", () => {
     const root = repoCopy();
     const hooks = "plugins/pstack/hooks/hooks.json";
     const text = readFileSync(join(root, hooks), "utf8");
@@ -970,6 +1005,6 @@ describe("plan, changes, apply", () => {
   });
 
   test("problems reports a root with no plugin directory, down to the last check, and does not throw", () => {
-    expect(problems(scratch("pstack-empty-"))).toContainEqual(expect.stringContaining("plugins/pstack/hooks/hooks.json"));
+    expect(problems(scratch("pstack-empty-")).map((problem) => problem.replaceAll("\\", "/"))).toContainEqual(expect.stringContaining("plugins/pstack/hooks/hooks.json"));
   });
 });

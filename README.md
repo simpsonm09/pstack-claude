@@ -14,6 +14,7 @@ What this fork adds:
 
 - An OpenCode build with a plugin entry, agent profiles, and tool mapping.
 - Native Windows hooks for GitHub Copilot.
+- An optional conditional T3 overlay that uses live orchestration tools when present and preserves each host mapping otherwise.
 
 Everything else is upstream's work and documentation, kept as upstream writes it. Issues with upstream content belong in [pstack-claude](https://github.com/michael-denyer/pstack-claude).
 

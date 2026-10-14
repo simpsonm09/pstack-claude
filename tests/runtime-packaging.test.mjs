@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateHooks } from "../tools/generate.mjs";
-import { validateCodexMarketplace, validateCopilotManifest, validatePiPackage } from "../tools/runtimes.mjs";
+import { RUNTIMES, validateCodexMarketplace, validateCopilotManifest, validatePiPackage } from "../tools/runtimes.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -51,6 +51,15 @@ describe("manifests", () => {
   const codexMarketplace = json(".agents/plugins/marketplace.json");
   const piPackage = json("package.json");
   const copilot = json("plugins/pstack/.github/plugin/plugin.json");
+
+  test("T3 has no manifest row and leaves every native host manifest registered", () => {
+    const t3 = RUNTIMES.find((runtime) => runtime.name === "T3 Code");
+    expect(t3?.manifest).toBeUndefined();
+    expect(RUNTIMES.filter((runtime) => runtime.manifest).map((runtime) => runtime.name)).toEqual(["Codex", "Pi", "GitHub Copilot", "OpenCode"]);
+    for (const runtime of RUNTIMES.filter((candidate) => candidate.manifest)) {
+      expect(existsSync(join(repoRoot, runtime.manifest))).toBe(true);
+    }
+  });
 
   test("the plugin and marketplace manifests agree on every fact they repeat", () => {
     const shared = ({ name, author, homepage, repository, license, keywords }) =>
@@ -149,7 +158,7 @@ describe("validateHooks", () => {
     const cmd = hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh" codex');
     const statOf = (rel) => (rel === "hooks/session-start.sh" ? exec : null);
     expect(() => validateHooks(cmd, { statOf })).not.toThrow();
-    expect(() => validateHooks(cmd, { statOf: () => plain })).toThrow("hooks/session-start.sh is not executable");
+    expect(() => validateHooks(cmd, { statOf: () => plain, platform: "linux" })).toThrow("hooks/session-start.sh is not executable");
     expect(() => validateHooks(cmd, { statOf: () => null, file: "hooks/codex-hooks.json" })).toThrow(
       "hooks/codex-hooks.json:\n  SessionStart: hooks/session-start.sh does not exist",
     );
@@ -169,7 +178,7 @@ describe("validateHooks", () => {
     expect(() => validateHooks(hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/nope"'), { statOf: () => null })).toThrow(
       "SessionStart: hooks/nope does not exist",
     );
-    expect(() => validateHooks(hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"'), { statOf: () => plain })).toThrow(
+    expect(() => validateHooks(hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"'), { statOf: () => plain, platform: "linux" })).toThrow(
       "hooks/session-start.sh is not executable",
     );
   });
@@ -247,7 +256,7 @@ describe("validateHooks", () => {
 
     test("checks each script exists, and only a bash script run directly is executable", () => {
       const bash = '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot';
-      expect(() => validateHooks(flat({ bash }), { ...copilot, statOf: () => plain })).toThrow("hooks/session-start.sh is not executable");
+      expect(() => validateHooks(flat({ bash }), { ...copilot, statOf: () => plain, platform: "linux" })).toThrow("hooks/session-start.sh is not executable");
       expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf: () => null })).toThrow(
         "sessionStart: hooks/session-start-copilot.ps1 does not exist in the plugin",
       );
