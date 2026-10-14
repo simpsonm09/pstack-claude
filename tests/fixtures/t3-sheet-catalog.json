@@ -1,0 +1,29 @@
+{
+  "providers": [
+    {
+      "providerInstanceId": "instance-alpha",
+      "canRunChildTask": true,
+      "models": [
+        {
+          "id": "familya-main",
+          "options": [
+            { "id": "effort", "options": [{ "id": "low" }, { "id": "high" }] },
+            { "id": "mode", "options": [{ "id": "safe" }] }
+          ]
+        },
+        { "id": "familya-alt", "options": [] },
+        { "id": "familyb-review", "options": [] }
+      ]
+    },
+    {
+      "providerInstanceId": "instance-beta",
+      "canRunChildTask": true,
+      "models": [{ "id": "route-z/familyc-model", "options": [] }]
+    },
+    {
+      "providerInstanceId": "instance-locked",
+      "canRunChildTask": false,
+      "models": [{ "id": "familyd-model", "options": [] }]
+    }
+  ]
+}
