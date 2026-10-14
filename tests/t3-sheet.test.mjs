@@ -148,6 +148,15 @@ describe("T3 model defaults", () => {
     expect(reference).not.toContain("t3-pstack-models.md");
     expect(reference).not.toContain("Read every `pstack:<name>` as");
   });
+
+  test("the reference states precedence and keeps unset panels on native dispatch", () => {
+    const reference = readFileSync(join(root, "plugins/pstack/skills/poteto-mode/references/t3-tools.md"), "utf8");
+    expect(reference).toContain("## Precedence");
+    expect(reference).toContain(
+      "If a panel role is absent, `inherit-parent`, or `auto` in the T3 sheet, use the host's native dispatch and that skill's own defaults exactly as outside T3.",
+    );
+    expect(reference).toContain("Tell the user once per session: `setup-pstack` can configure a mixed-model panel for T3.");
+  });
 });
 
 describe("t3-sheet.mjs command line", () => {

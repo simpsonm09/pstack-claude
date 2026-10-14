@@ -31,13 +31,13 @@ The Codex home directory is `$CODEX_HOME` when that variable is set and `~/.code
 
 Immediately before setup, inspect the live tool list. If both final name segments `delegate_task` and `orchestrator_capabilities` are present, follow this branch and skip native steps 1 through 8. If either is absent, continue with the existing steps unchanged and do not mention T3.
 
-Call `orchestrator_capabilities` and save its complete result to a temporary file. Show each available target and each model's option IDs and allowed values. Read the active host's `pstack-t3-models.md` and `pstack-t3-instances.json`, if present, from the host config directory in the table below. Propose `inherit-parent` for every role by default, including panel roles. Ask the user to choose any explicit targets and options; never fill a target they did not choose.
+Call `orchestrator_capabilities` and save its complete result to a temporary file. Show each available target and each model's option IDs and allowed values. Read the active host's `pstack-t3-models.md` and `pstack-t3-instances.json`, if present, from the host config directory in the T3 mapping. Propose `inherit-parent` for every role by default, including panel roles. Ask the user to choose any explicit targets and options; never fill a target they did not choose.
 
 Write the candidate sheet to a temporary file. Validate it against the saved capability result with `scripts/t3-sheet.mjs <candidate> <catalog>`. If `pstack-t3-instances.json` exists, pass `--allow <allow-list>`. If it is absent, tell the user children may run without the pstack layer or access gate, then continue without that check. Resolve every validation error before writing.
 
 Create the active host config directory if needed. Write the accepted sheet atomically to `pstack-t3-models.md` there: write a temporary sibling file, flush it, then rename it over the destination. Include only roles the user chose, using `inherit-parent` for an unset role. Do not write defaults. Report the path and that unset roles inherit the parent model.
 
-The sheet paths are in [Other runtimes](#other-runtimes). The allow-list is `pstack-t3-instances.json` beside the sheet.
+The host config directories and allow-list location are defined in the [T3 mapping](../poteto-mode/references/t3-tools.md#the-sheet).
 
 ## Steps
 
@@ -122,17 +122,7 @@ The role lines are the same everywhere. What differs is the sheet path, how the 
 | Gemini CLI | `~/.gemini/pstack-models.md` | `@~/.gemini/pstack-models.md` in `~/.gemini/GEMINI.md` | the `model` slash command in the session | from published docs, no live session |
 | Prime Agent | no documented sheet path; Prime's configuration chooses models | | | no live session |
 
-T3 uses a separate sheet in the same host config directory, so native model sheets stay unchanged:
-
-| Host | T3 sheet and allow-list directory |
-| --- | --- |
-| Claude Code | `${CLAUDE_CONFIG_DIR:-~/.claude}` |
-| Codex | `${CODEX_HOME:-~/.codex}` |
-| GitHub Copilot | `${COPILOT_HOME:-~/.copilot}` |
-| OpenCode | `${XDG_CONFIG_HOME:-~/.config}/opencode` |
-| Pi | `${PI_CODING_AGENT_DIR:-~/.pi/agent}` |
-
-Use `pstack-t3-models.md` for the sheet and `pstack-t3-instances.json` for the optional allow-list.
+T3 uses `pstack-t3-models.md` in the host config directory listed in the [T3 mapping](../poteto-mode/references/t3-tools.md#the-sheet). Its optional `pstack-t3-instances.json` allow-list sits beside the sheet. Native model sheets stay unchanged.
 
 ## Models
 
