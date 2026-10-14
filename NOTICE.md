@@ -58,3 +58,9 @@ Port-authored files covered by this notice include:
 - `CHANGES.md`
 
 `LICENSE-cursor-team-kit` and `LICENSE-thermos` are copied verbatim from upstream cursor-team-kit and thermos rather than authored for this port.
+
+## This fork
+
+The OpenCode build, including its plugin entry, agent profiles, and tool mapping, and the native Windows hooks for GitHub Copilot are additions by simpsonm09. These additions are released under the same [MIT license](LICENSE). Copyright (c) 2026 simpsonm09.
+
+[t3-pstack](https://github.com/chhoumann/t3-pstack) by Christian Bager Bach Houmann is a design reference for a planned optional T3 dispatch overlay. It is MIT-licensed. No t3-pstack file is included in this repository at this time.

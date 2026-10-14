@@ -1,5 +1,22 @@
 # pstack
 
+## About this fork
+
+This is a fork of [pstack-claude](https://github.com/michael-denyer/pstack-claude), maintained at [simpsonm09/pstack-claude](https://github.com/simpsonm09/pstack-claude).
+
+Its lineage is:
+
+- [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan, the original Cursor skill stack.
+- [pstack-claude](https://github.com/michael-denyer/pstack-claude) by Michael Denyer, the port to Claude Code, Codex, Pi, and GitHub Copilot.
+- [t3-pstack](https://github.com/chhoumann/t3-pstack) by Christian Bager Bach Houmann, a sibling fork and reference for a planned optional T3 dispatch overlay. No files have been copied from it.
+
+What this fork adds:
+
+- An OpenCode build with a plugin entry, agent profiles, and tool mapping.
+- Native Windows hooks for GitHub Copilot.
+
+Everything else is upstream's work and documentation, kept as upstream writes it. Issues with upstream content belong in [pstack-claude](https://github.com/michael-denyer/pstack-claude).
+
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/codenyer)
 
 Lauren Tan's [pstack](https://github.com/cursor/plugins/tree/main/pstack) is an opinionated Cursor skill stack that improves agent outcomes. This is a port for Claude Code, Codex, Pi, GitHub Copilot, OpenCode and other agent harnesses. It tracks upstream and also carries named policy forks, each declared in [`tools/forks.json`](tools/forks.json).
