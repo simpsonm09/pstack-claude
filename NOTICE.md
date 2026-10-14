@@ -63,4 +63,4 @@ Port-authored files covered by this notice include:
 
 The OpenCode build, including its plugin entry, agent profiles, and tool mapping, and the native Windows hooks for GitHub Copilot are additions by simpsonm09. These additions are released under the same [MIT license](LICENSE). Copyright (c) 2026 simpsonm09.
 
-[t3-pstack](https://github.com/chhoumann/t3-pstack) by Christian Bager Bach Houmann is a design reference for a planned optional T3 dispatch overlay. It is MIT-licensed. No t3-pstack file is included in this repository at this time.
+[t3-tools.md](plugins/pstack/skills/poteto-mode/references/t3-tools.md) adapts the T3 mapping reference from [t3-pstack](https://github.com/chhoumann/t3-pstack) by Christian Bager Bach Houmann. The sheet checker and its tests are independently implemented for this fork. The adapted reference is released under the MIT License; see [LICENSE-t3-pstack](LICENSE-t3-pstack).
