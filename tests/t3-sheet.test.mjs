@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { checkSheet, family, parseEntry, parseSheet } from "../plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs";
+import { tmpdir } from "node:os";
+import { checkSheet, family, findT3Files, parseEntry, parseSheet } from "../plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs";
 
 const root = join(import.meta.dir, "..");
 const models = JSON.parse(readFileSync(join(root, "plugins/pstack/models.json"), "utf8"));
@@ -17,6 +18,86 @@ const allowList = {
 };
 const PANEL = "arena runners";
 const check = (text, options = {}) => checkSheet(parseSheet(text), { roles, catalog, ...options });
+
+describe("T3 file lookup", () => {
+  let temp;
+  let host;
+  beforeEach(() => {
+    temp = mkdtempSync(join(tmpdir(), "pstack-t3-"));
+    host = join(temp, "host");
+    mkdirSync(host);
+  });
+  afterEach(() => rmSync(temp, { recursive: true, force: true }));
+
+  test("finds workspace files from a nested directory", () => {
+    const workspace = join(temp, "project");
+    const config = join(workspace, ".pstack");
+    const nested = join(workspace, "src", "deep");
+    mkdirSync(config, { recursive: true });
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(config, "pstack-t3-models.md"), "sheet");
+    writeFileSync(join(config, "pstack-t3-instances.json"), "{}");
+    expect(findT3Files(nested, host)).toEqual({
+      sheet: join(config, "pstack-t3-models.md"),
+      allow: join(config, "pstack-t3-instances.json"),
+      source: "workspace",
+    });
+  });
+
+  test("uses the nearest .pstack and never mixes its files with the host", () => {
+    const outer = join(temp, "outer");
+    const inner = join(outer, "inner");
+    mkdirSync(join(outer, ".pstack"), { recursive: true });
+    mkdirSync(join(inner, ".pstack"), { recursive: true });
+    mkdirSync(host, { recursive: true });
+    writeFileSync(join(outer, ".pstack", "pstack-t3-instances.json"), "{}");
+    writeFileSync(join(inner, ".pstack", "pstack-t3-models.md"), "sheet");
+    writeFileSync(join(host, "pstack-t3-instances.json"), "{}");
+    expect(findT3Files(inner, host)).toEqual({
+      sheet: join(inner, ".pstack", "pstack-t3-models.md"),
+      allow: null,
+      source: "workspace",
+    });
+  });
+
+  test("falls back to the host and returns null for missing files", () => {
+    const nested = join(temp, "plain", "child");
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(host, "pstack-t3-instances.json"), "{}");
+    expect(findT3Files(nested, host)).toEqual({
+      sheet: null,
+      allow: join(host, "pstack-t3-instances.json"),
+      source: "host",
+    });
+    rmSync(join(host, "pstack-t3-instances.json"));
+    expect(findT3Files(nested, host)).toEqual({ sheet: null, allow: null, source: "host" });
+  });
+});
+
+test("T3 mapping states workspace-first file lookup", () => {
+  const reference = readFileSync(
+    join(root, "plugins/pstack/skills/poteto-mode/references/t3-tools.md"),
+    "utf8",
+  );
+  expect(reference).toContain(
+    "Starting at the session's working directory and walking up its parent folders, use the first `.pstack` folder that contains either T3 file. Read both files from that same folder; a missing file there is absent and does not fall back to the host. If no such folder exists, use the host's per-user config folder.",
+  );
+});
+
+test("lookup CLI prints its result as JSON", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      join(root, "plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs"),
+      "--find",
+      root,
+      join(root, "tests/fixtures"),
+    ],
+    { encoding: "utf8" },
+  );
+  expect(result.status).toBe(0);
+  expect(JSON.parse(result.stdout)).toEqual({ sheet: null, allow: null, source: "host" });
+});
 
 describe("T3 model sheet parsing", () => {
   test("accepts comments, blank lines, known roles, inheritance, and session hook settings", () => {

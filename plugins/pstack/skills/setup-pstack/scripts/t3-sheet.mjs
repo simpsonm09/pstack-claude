@@ -3,6 +3,7 @@
 // It has no runtime dependency beyond Node.js built-ins and does not call T3.
 
 import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const INHERIT = new Set(["inherit-parent", "auto"]);
@@ -12,6 +13,33 @@ const PANEL_ROLES = new Set([
   "architect runners",
   "interrogate reviewers",
 ]);
+
+export function findT3Files(startDir, hostConfigDir) {
+  let current = resolve(startDir);
+  while (true) {
+    const directory = join(current, ".pstack");
+    const sheetPath = join(directory, "pstack-t3-models.md");
+    const allowPath = join(directory, "pstack-t3-instances.json");
+    if (existsSync(sheetPath) || existsSync(allowPath)) {
+      return {
+        sheet: existsSync(sheetPath) ? sheetPath : null,
+        allow: existsSync(allowPath) ? allowPath : null,
+        source: "workspace",
+      };
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  const sheetPath = join(resolve(hostConfigDir), "pstack-t3-models.md");
+  const allowPath = join(resolve(hostConfigDir), "pstack-t3-instances.json");
+  return {
+    sheet: existsSync(sheetPath) ? sheetPath : null,
+    allow: existsSync(allowPath) ? allowPath : null,
+    source: "host",
+  };
+}
 
 export function parseSheet(text) {
   return text
@@ -191,6 +219,15 @@ export function checkSheet(rows, { roles, catalog, allowList } = {}) {
 
 function main() {
   const args = process.argv.slice(2);
+  if (args[0] === "--find") {
+    if (args.length !== 3) {
+      console.error("usage: t3-sheet.mjs --find <start-directory> <host-config-directory>");
+      process.exitCode = 2;
+      return;
+    }
+    console.log(JSON.stringify(findT3Files(args[1], args[2])));
+    return;
+  }
   if (args.length < 2 || args.length > 4 || args[2] !== undefined && args[2] !== "--allow" || args[2] === "--allow" && !args[3]) {
     console.error("usage: t3-sheet.mjs <sheet-file> <catalog.json> [--allow <allow-list.json>]");
     process.exitCode = 2;
