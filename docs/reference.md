@@ -61,9 +61,23 @@ All runtimes share [one skills tree](../plugins/pstack/skills/). A skills-only i
 | Prime Agent | Its documentation describes shared-directory discovery; it has not been tested in a live session. Choose tools and models through Prime's configuration. |
 | opencode | The [OpenCode build](#opencode) is a plugin entry that registers the shared skills and injects the routing, with three agent profiles and an [OpenCode mapping](../plugins/pstack/skills/poteto-mode/references/opencode-tools.md). Its files and checks run offline; no live OpenCode 2.0 session has run them. Discovery of a linked skill was verified on version 1.18.25. |
 | Gemini CLI | Its documentation describes shared-directory discovery; it has not been tested in a live session. Use `/skills list` to check discovery and `/skills reload` after changes. |
+| T3 Code | Optional overlay. A live tool-list check controls whether T3 dispatch is used. See [Inside T3 Code](#inside-t3-code). |
 
 These checks cover skill discovery. Delegation and multi-model workflows remain unverified on Prime Agent and Gemini CLI, and on opencode outside the [OpenCode build](#opencode). On those runtimes, agents must adapt Claude-specific tools, models, and configuration. Each mapping applies only to its runtime.
 
+### Inside T3 Code
+
+The T3 overlay is optional. Before dispatch, a skill checks the live tool list for both final name segments `delegate_task` and `orchestrator_capabilities`. If either is absent, the host mapping and native model sheet apply unchanged. If both are present, [the T3 mapping](../plugins/pstack/skills/poteto-mode/references/t3-tools.md) controls dispatch, models, schedules and pull request watching.
+
+Run `setup-pstack` in that session to choose targets and options. If the allow-list is absent, setup warns that children may run without the pstack layer or access gate. Unset roles inherit the parent's model. The sheet is `pstack-t3-models.md` in the active host config directory; the allow-list, when installed, is `pstack-t3-instances.json` beside it:
+
+- Claude Code: `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-t3-models.md`.
+- Codex: `${CODEX_HOME:-~/.codex}/pstack-t3-models.md`.
+- GitHub Copilot: `${COPILOT_HOME:-~/.copilot}/pstack-t3-models.md`.
+- OpenCode: `${XDG_CONFIG_HOME:-~/.config}/opencode/pstack-t3-models.md`.
+- Pi: `${PI_CODING_AGENT_DIR:-~/.pi/agent}/pstack-t3-models.md`.
+
+Claude Code and Codex are documented T3 dispatching parents. OpenCode exposes the tools in a measured session, but a dispatch has not been measured. Copilot and Pi remain unverified as parents.
 ### Automatic routing
 
 The Claude Code, Codex, and GitHub Copilot plugins load the same short [routing instruction](../plugins/pstack/hooks/session-start-context.md) on startup, resume, clear, and compact. The [POSIX hook](../plugins/pstack/hooks/session-start.sh) runs on Claude Code, POSIX Codex, and GitHub Copilot, where it prints the instruction as JSON `additionalContext` with a Copilot addendum. On Windows, Codex uses a [PowerShell adapter](../plugins/pstack/hooks/session-start.ps1) through its `commandWindows` override, and Copilot uses one through its `powershell` key, so neither needs Bash; see [native Windows hooks](#native-windows-hooks). The adapter runs with `-ExecutionPolicy Bypass`, which a machine or user execution policy set by Group Policy overrides; on such machines the hook fails and no instruction loads. Codex requires the user to trust plugin hooks through `/hooks`. On Pi, the [extension](../plugins/pstack/pi/prompt.ts) adds the same instruction to the system prompt at every agent start, so it survives compaction. The instruction invokes `poteto-mode` when a task meets any of these conditions:

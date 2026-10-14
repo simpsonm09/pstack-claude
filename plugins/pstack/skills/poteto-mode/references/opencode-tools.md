@@ -4,6 +4,8 @@ pstack skills are written in Claude Code tool language (the `Skill` tool, the `A
 
 The OpenCode tool and agent names below have not been checked in a live OpenCode 2.0 session. When a name in this file differs from the tool list of the session you are in, follow the session.
 
+Inside T3 Code, [t3-tools.md](t3-tools.md) takes precedence for dispatch, models, schedules and pull request watching. Otherwise this file applies unchanged.
+
 ## Tool actions
 
 | pstack / Claude action | OpenCode equivalent |

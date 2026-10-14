@@ -2,6 +2,8 @@
 
 pstack skills are written in Claude Code tool language (the `Skill` tool, the `Agent` tool, `AskUserQuestion`, Claude model names). On Pi the skills are the same files, loaded from the pstack package, and the package's Pi extension registers tools named after the Claude ones, so most names map one to one. Read this when a pstack skill names a Claude tool, a driver or bundled skill, or a Claude model. This file is Pi-specific.
 
+Inside T3 Code, [t3-tools.md](t3-tools.md) takes precedence for dispatch, models, schedules and pull request watching. Otherwise this file applies unchanged.
+
 ## Tool actions
 
 | pstack / Claude action | Pi equivalent |

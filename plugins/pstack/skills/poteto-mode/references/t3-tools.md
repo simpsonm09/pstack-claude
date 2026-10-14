@@ -6,6 +6,7 @@ Immediately before each dispatch, inspect the live tool list. Use this mapping o
 
 Do not infer T3 from an environment variable or from the host being started by T3. Neither signal is verified. If either tool is absent, follow the host's own mapping unchanged. Do not mention T3.
 
+
 If the tools disappear during a session, stop new T3 dispatches. Do not duplicate a child whose acceptance is still unclear. Check `task_status` when a task ID is available.
 
 ## Tool actions
@@ -66,6 +67,30 @@ If the T3 tools vanish mid-session, stop new T3 dispatches. For a role that has 
 ## Parent hosts
 
 Claude Code and Codex are documented as able to dispatch as a parent in T3 by t3-pstack. OpenCode exposes the tools in its live tool list, measured, but a dispatch has not been measured. Copilot and Pi are unknown.
+
+## Per-skill notes
+
+These skills dispatch children, choose role models, schedule work, or watch pull requests. The generator stamps the conditional T3 line on exactly these entry points.
+
+| Skill | On T3 Code |
+| --- | --- |
+| `arena` | Runner and judge dispatch uses this mapping. |
+| `architect` | Runner dispatch uses this mapping. |
+| `automate-me` | Parallel transcript readers use this mapping. |
+| `babysit` | PR watching and scheduled follow-up use this mapping. |
+| `how` | Explorer and explainer dispatch uses this mapping. |
+| `interrogate` | Reviewer dispatch uses this mapping. |
+| `maintain-verification-skill` | Parallel source readers use this mapping. |
+| `no-comments` | Reviewer dispatch uses this mapping. |
+| `poteto-mode` | Shared dispatch policy uses this mapping. |
+| `reflect` | Reviewer and synthesizer dispatch uses this mapping. |
+| `setup-pstack` | T3 capability and role choices use this mapping. |
+| `swarm` | Worker dispatch uses this mapping. |
+| `teach` | Composed skill dispatch uses this mapping. |
+| `thermos` | Review dispatch uses this mapping. |
+| `why` | Investigator and synthesizer dispatch uses this mapping. |
+
+The machine-local allow-list is `pstack-t3-instances.json` beside `pstack-t3-models.md` in the active host config directory.
 
 ## Source
 

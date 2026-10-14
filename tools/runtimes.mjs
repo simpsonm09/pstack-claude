@@ -71,14 +71,21 @@ export const RUNTIMES = [
     manifest: `${OPENCODE}/package.json`,
     validate: ({ manifest, read, pathExists }) => validateOpencodePackage(manifest, { read, pathExists }),
   },
+  {
+    name: "T3 Code",
+    mapping: "t3-tools.md",
+    conditionalOnly: true,
+  },
 ].map((runtime) => ({
   ...runtime,
   tools: `${SKILLS}/poteto-mode/references/${runtime.mapping}`,
-  notesHeader: `| Skill | On ${runtime.name} |`,
-  preamble: runtime.skillPreambles
-    ? `On ${runtime.name}, read the [platform mapping](../poteto-mode/references/${runtime.mapping}), ` +
-      "including its per-skill notes, before following this skill."
-    : null,
+  notesHeader: runtime.notesHeader ?? `| Skill | On ${runtime.name} |`,
+  preamble: runtime.conditionalOnly
+    ? "Inside T3 Code (the live tool list has `delegate_task` and `orchestrator_capabilities`), follow [t3-tools.md](../poteto-mode/references/t3-tools.md) for dispatch, models, schedules and pull request watching. Otherwise ignore this line."
+    : runtime.skillPreambles
+      ? `On ${runtime.name}, read the [platform mapping](../poteto-mode/references/${runtime.mapping}), ` +
+        "including its per-skill notes, before following this skill."
+      : null,
 }));
 
 // Codex has no Claude aliases, so its block gives an example model per tier.

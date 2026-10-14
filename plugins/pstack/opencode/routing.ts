@@ -16,6 +16,8 @@ Load the \`poteto-mode\` skill with the \`skill\` tool and follow it when a task
 
 It routes to the right pstack skill from there. For smaller tasks, such as a contained change to one file with an obvious test, a question, or a one-line edit, work directly and verify on the real artifact. When the intent is already specific, enter that skill directly: \`tdd\`, \`architect\`, \`how\`, \`why\`, \`arena\`, \`interrogate\`.
 
+Before a pstack dispatch, check the live tool list for the T3 tools and read \`t3-tools.md\` if they are present.
+
 This is OpenCode, not Claude Code. pstack skills name Claude tools and Claude model names. Before following a skill that does, read ${mappingPath} with the \`read\` tool and use its OpenCode equivalents. The mapping is a file, not a skill, so do not look for a separate pstack-opencode skill. A subagent runs on the session's model unless its agent profile names one, so never pass a Claude model name to a subagent.
 
 User instructions (AGENTS.md, direct requests) take precedence.

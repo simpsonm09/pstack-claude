@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadModels } from "../tools/generate.mjs";
+import { routingInstruction } from "../plugins/pstack/opencode/routing.ts";
 import { OPENCODE_AGENTS, opencodeModelNamesSection, RUNTIMES, validateOpencodePackage } from "../tools/runtimes.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -64,6 +65,14 @@ describe("the OpenCode runtime row", () => {
 
   test("the stamped mapping file carries exactly that section", () => {
     expect(readRepo(MAPPING)).toContain(opencodeModelNamesSection(models));
+  });
+});
+
+describe("OpenCode routing context", () => {
+  test("reminds the session to check T3 tools before dispatch", () => {
+    const text = routingInstruction("/plugin/skills/poteto-mode/references/opencode-tools.md");
+    expect(text).toContain("Before a pstack dispatch, check the live tool list for the T3 tools and read `t3-tools.md` if they are present.");
+    expect(text).not.toMatch(/(?:claude-|gpt-|openai|anthropic|gemini|grok|instance[-/])/i);
   });
 });
 

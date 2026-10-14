@@ -1,5 +1,9 @@
 # CHANGES
 
+## 0.9.85 - add optional conditional T3 routing
+
+The generated skill preamble routes dispatch through the T3 mapping only when both orchestration tools are present. Setup records explicit choices in a host-local sheet; unset roles inherit the parent. Session contexts remind each host to inspect its live tools. Native mappings remain active when T3 is absent.
+
 This file is the release changelog, with one `## <version> - <title>` entry per release, newest first. The Cursor-to-Claude rewrite rules live in [`tools/substitutions.json`](tools/substitutions.json), and the [sync boundary](CONTRIBUTING.md#the-sync-boundary) in `CONTRIBUTING.md` defines how a change to upstream's skill content is declared.
 
 ## 0.9.84 - run the Codex SessionStart hook again

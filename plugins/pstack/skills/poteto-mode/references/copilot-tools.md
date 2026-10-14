@@ -2,6 +2,8 @@
 
 pstack skills are written in Claude Code tool language (the `Skill` tool, the `Agent` tool, `AskUserQuestion`, Claude model names, `~/.claude/` paths). On GitHub Copilot the skills are the same files; only the tool names, model IDs, and paths resolve differently. Read this when a pstack skill names a Claude tool, a driver or bundled skill, a Claude model, or a Claude Code path. It covers both the Copilot CLI and the Copilot app, which load the same plugin. This file is Copilot-specific; other runtimes use their own equivalents.
 
+Inside T3 Code, [t3-tools.md](t3-tools.md) takes precedence for dispatch, models, schedules and pull request watching. Otherwise this file applies unchanged.
+
 ## Tool actions
 
 | pstack / Claude action | GitHub Copilot equivalent |

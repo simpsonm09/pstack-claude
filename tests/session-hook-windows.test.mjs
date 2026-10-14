@@ -249,6 +249,13 @@ describe.skipIf(process.platform !== "win32" && !required)("Windows Copilot Sess
     });
   }
 
+  test("both Copilot hooks include the conditional T3 reminder byte for byte", () => {
+    withCopilotPlugin({}, (fixture) => {
+      const out = expectSameAsPosix(fixture).toString("utf8");
+      expect(JSON.parse(out).additionalContext).toContain("Before a pstack dispatch, check the live tool list for the T3 tools and read `t3-tools.md` if they are present.");
+    });
+  });
+
   test("matches the POSIX hook for a valid sheet in UTF-8, CRLF with a byte-order mark, and UTF-16 LE", () => {
     const sheet = validSheet(["default effort: high"]);
     const sheets = [
