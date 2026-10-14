@@ -69,7 +69,7 @@ These checks cover skill discovery. Delegation and multi-model workflows remain 
 
 The T3 overlay is optional. Before dispatch, a skill checks the live tool list for both final name segments `delegate_task` and `orchestrator_capabilities`. If either is absent, the host mapping and native model sheet apply unchanged. If both are present, [the T3 mapping](../plugins/pstack/skills/poteto-mode/references/t3-tools.md) controls dispatch, models, schedules and pull request watching.
 
-Run `setup-pstack` in that session to choose targets and options. If the allow-list is absent, setup warns that children may run without the pstack layer or access gate. Unset roles inherit the parent's model.
+Run `setup-pstack` in that session to choose targets and options. The allow-list can mark instances as read-only for the documented review and research roles; setup labels those instances and offers them only for those roles. If the allow-list is absent, setup warns that children may run without the pstack layer or access gate. Unset roles inherit the parent's model.
 
 Starting at the session's working directory and walking up its parent folders, use the first `.pstack` folder that contains either T3 file. Read both files from that same folder; a missing file there is absent and does not fall back to the host. If no such folder exists, use the host's per-user config folder.
 
