@@ -13,6 +13,17 @@ const PANEL_ROLES = new Set([
   "architect runners",
   "interrogate reviewers",
 ]);
+export const READ_ONLY_ROLES = [
+  "how explorer",
+  "how explainer",
+  "why investigators",
+  "why synthesizer",
+  "reflect tooling",
+  "reflect judgment, divergent, synthesizer",
+  "arena cross-judge pool",
+  "interrogate reviewers",
+];
+const READ_ONLY_ROLE_SET = new Set(READ_ONLY_ROLES);
 
 export function findT3Files(startDir, hostConfigDir) {
   let current = resolve(startDir);
@@ -97,7 +108,25 @@ export function family(modelId) {
   return modelId.split("/").at(-1).split("-")[0];
 }
 
-function targetProblems(entry, catalog, allowList) {
+function allowListProblems(allowList) {
+  const problems = [];
+  const instances = allowList?.instances;
+  if (!instances || typeof instances !== "object" || Array.isArray(instances)) {
+    return ['allow-list: expected an "instances" object'];
+  }
+
+  for (const [id, entry] of Object.entries(instances)) {
+    const hasReadOnly = Object.hasOwn(entry ?? {}, "readOnly");
+    const full = Array.isArray(entry?.layers) && entry.layers.includes("pstack") && entry.gate === true && !hasReadOnly;
+    const readOnly = Array.isArray(entry?.layers) && entry.layers.length === 0 && entry.gate === false && entry.readOnly === true;
+    if (!full && !readOnly) {
+      problems.push(`allow-list instance "${id}": expected layers including "pstack" and gate: true without readOnly, or layers: [], gate: false, readOnly: true`);
+    }
+  }
+  return problems;
+}
+
+function targetProblems(entry, role, catalog, allowList) {
   const { providerInstanceId, model, options } = entry;
   const label = entry.text;
   const provider = catalog?.providers?.find((item) => item.providerInstanceId === providerInstanceId);
@@ -136,17 +165,23 @@ function targetProblems(entry, catalog, allowList) {
     if (!allowed) {
       problems.push(`entry "${label}": allow-list has no instance "${providerInstanceId}"`);
     } else {
-      const missing = [];
-      if (!Array.isArray(allowed.layers) || !allowed.layers.includes("pstack")) missing.push('layer "pstack"');
-      if (allowed.gate !== true) missing.push('gate "true"');
-      if (missing.length) problems.push(`entry "${label}": allow-list is missing ${missing.join(" and ")}`);
+      const full = Array.isArray(allowed.layers) && allowed.layers.includes("pstack") && allowed.gate === true && !Object.hasOwn(allowed, "readOnly");
+      const readOnly = Array.isArray(allowed.layers) && allowed.layers.length === 0 && allowed.gate === false && allowed.readOnly === true;
+      if (readOnly && !READ_ONLY_ROLE_SET.has(role)) {
+        problems.push(`entry "${label}": provider instance "${providerInstanceId}" is read-only and role "${role}" is not read-only`);
+      } else if (!full && !readOnly) {
+        const missing = [];
+        if (!Array.isArray(allowed.layers) || !allowed.layers.includes("pstack")) missing.push('layer "pstack"');
+        if (allowed.gate !== true) missing.push('gate "true"');
+        problems.push(`entry "${label}": allow-list is missing ${missing.join(" and ") || "a valid entry shape"}`);
+      }
     }
   }
   return problems;
 }
 
 export function checkSheet(rows, { roles, catalog, allowList } = {}) {
-  const problems = [];
+  const problems = allowList === undefined ? [] : allowListProblems(allowList);
   const knownRoles = new Set(roles.map((item) => item.role));
   const panels = new Set(roles.filter((item) => item.models === "panel" || item.panel === true).map((item) => item.role));
   const seen = new Set();
@@ -197,7 +232,7 @@ export function checkSheet(rows, { roles, catalog, allowList } = {}) {
     }
     const validTargets = [];
     for (const target of targets) {
-      const faults = targetProblems(target, catalog, allowList);
+      const faults = targetProblems(target, row.key, catalog, allowList);
       problems.push(...faults.map((fault) => `${row.key}: ${fault}`));
       if (!faults.length) validTargets.push(target);
     }

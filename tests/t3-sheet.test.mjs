@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { checkSheet, family, findT3Files, parseEntry, parseSheet } from "../plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs";
+import { checkSheet, family, findT3Files, parseEntry, parseSheet, READ_ONLY_ROLES } from "../plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs";
 
 const root = join(import.meta.dir, "..");
 const models = JSON.parse(readFileSync(join(root, "plugins/pstack/models.json"), "utf8"));
@@ -85,18 +85,27 @@ test("T3 mapping states workspace-first file lookup", () => {
 });
 
 test("lookup CLI prints its result as JSON", () => {
-  const result = spawnSync(
-    process.execPath,
-    [
-      join(root, "plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs"),
-      "--find",
-      root,
-      join(root, "tests/fixtures"),
-    ],
-    { encoding: "utf8" },
-  );
-  expect(result.status).toBe(0);
-  expect(JSON.parse(result.stdout)).toEqual({ sheet: null, allow: null, source: "host" });
+  const temp = mkdtempSync(join(tmpdir(), "pstack-t3-find-"));
+  try {
+    const start = join(temp, "project");
+    const host = join(temp, "host");
+    mkdirSync(start);
+    mkdirSync(host);
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(root, "plugins/pstack/skills/setup-pstack/scripts/t3-sheet.mjs"),
+        "--find",
+        start,
+        host,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ sheet: null, allow: null, source: "host" });
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
 });
 
 describe("T3 model sheet parsing", () => {
@@ -121,6 +130,56 @@ describe("T3 model sheet parsing", () => {
 
   test("accepts a validated option and a panel with two model families", () => {
     expect(check(`${PANEL}: instance-alpha/familya-main effort=high, instance-alpha/familyb-review`, { allowList })).toEqual([]);
+  });
+
+  test("accepts a read-only instance for a read-only role", () => {
+    const readOnlyAllowList = {
+      instances: { "instance-beta": { layers: [], gate: false, readOnly: true } },
+    };
+    expect(check("how explorer: instance-beta/route-z/familyc-model", { allowList: readOnlyAllowList })).toEqual([]);
+  });
+
+  test("refuses a read-only instance for a role that may write", () => {
+    const readOnlyAllowList = {
+      instances: { "instance-beta": { layers: [], gate: false, readOnly: true } },
+    };
+    expect(check("bug-fix: instance-beta/route-z/familyc-model", { allowList: readOnlyAllowList })).toContain(
+      'bug-fix: entry "instance-beta/route-z/familyc-model": provider instance "instance-beta" is read-only and role "bug-fix" is not read-only',
+    );
+  });
+
+  test("a read-only panel may mix full and read-only instances", () => {
+    const mixedAllowList = {
+      instances: {
+        "instance-alpha": { layers: ["pstack"], gate: true },
+        "instance-beta": { layers: [], gate: false, readOnly: true },
+      },
+    };
+    expect(check("arena cross-judge pool: instance-alpha/familya-main, instance-beta/route-z/familyc-model", { allowList: mixedAllowList })).toEqual([]);
+  });
+
+  test("rejects invalid allow-list entry combinations", () => {
+    const invalidEntries = [
+      { layers: ["pstack"], gate: true, readOnly: true },
+      { layers: ["pstack"], gate: true, readOnly: false },
+      { layers: ["pstack"], gate: false, readOnly: true },
+      { layers: [], gate: true, readOnly: true },
+      { layers: [], gate: false, readOnly: false },
+    ];
+    for (const entry of invalidEntries) {
+      expect(check("how explorer: instance-beta/route-z/familyc-model", {
+        allowList: { instances: { "instance-beta": entry } },
+      })).toContain(
+        'allow-list instance "instance-beta": expected layers including "pstack" and gate: true without readOnly, or layers: [], gate: false, readOnly: true',
+      );
+    }
+  });
+
+  test("the documented read-only role list matches the checker", () => {
+    const reference = readFileSync(join(root, "plugins/pstack/skills/poteto-mode/references/t3-tools.md"), "utf8").replace(/\r\n/g, "\n");
+    const roleSection = reference.split("### Read-only roles\n")[1].split("\n## Rejections and fallback")[0];
+    const documentedRoles = [...roleSection.matchAll(/^\| `([^`]+)` \|/gm)].map((match) => match[1]);
+    expect(documentedRoles).toEqual(READ_ONLY_ROLES);
   });
 
   test("an unset panel is valid", () => {

@@ -71,6 +71,32 @@ The panel roles are `arena runners`, `arena cross-judge pool`, `architect runner
 
 For a non-panel role, an unset value means call `delegate_task` without `target`. Validate each configured entry against a saved `orchestrator_capabilities` result before dispatch. A dispatch without `target` needs no catalog check. The provider instance must exist and have `canRunChildTask: true`. The model must be listed under that instance. Each option must exist for that model, and its value must be listed for that option. When checking is run with an allow-list, each configured provider instance must also be listed with the `pstack` layer and `gate: true`.
 
+### Allow-list entries
+
+Each `instances` entry must use one of these shapes:
+
+- Full access: `{ "layers": ["pstack", ...], "gate": true }`. The `layers` array may include other layer names.
+- Read-only: `{ "layers": [], "gate": false, "readOnly": true }`.
+
+Every other combination is invalid. A full entry that includes `readOnly` is rejected. A read-only entry may be used only by a role in the read-only role table below. The checker exports the role list, and a test keeps this table in sync.
+
+When a child is sent to a read-only instance, its brief must say not to edit files, commit, push, or open pull requests. The parent must not later ask that child, or a follow-up round on that instance, to do any of those things.
+
+### Read-only roles
+
+These roles ask children only to read, analyse, and report. The list is defined in `t3-sheet.mjs`; the test verifies that the role names here match it.
+
+| Role | Why its children are read-only |
+| --- | --- |
+| `how explorer` | Explores source and returns findings. |
+| `how explainer` | Produces an explanation from source and findings. |
+| `why investigators` | Investigates evidence and returns findings; the skill explicitly says investigators should not write. |
+| `why synthesizer` | Synthesizes evidence and reports the rationale. |
+| `reflect tooling` | Reviews a transcript for tooling lessons and returns findings; the parent applies any edits. |
+| `reflect judgment, divergent, synthesizer` | Reviews, judges, and synthesizes findings; the parent applies any edits. |
+| `arena cross-judge pool` | Scores candidate artifacts and recommends a base without changing them. |
+| `interrogate reviewers` | Reviews changes and returns a verdict; the skill forbids auto-applying changes. |
+
 ## Rejections and fallback
 
 If a target is rejected, try only another explicitly configured, validated entry from the same model family. Do not invent a target or option. If no such entry is available, report that role as unavailable.
