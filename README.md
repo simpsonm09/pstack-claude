@@ -2,7 +2,7 @@
 
 ## About this fork
 
-This is a fork of [pstack-claude](https://github.com/michael-denyer/pstack-claude), maintained at [simpsonm09/pstack-claude](https://github.com/simpsonm09/pstack-claude).
+This repository is pstack-max, a fork of [pstack-claude](https://github.com/michael-denyer/pstack-claude) maintained at [simpsonm09/pstack-max](https://github.com/simpsonm09/pstack-max). It is one person's interpretation of pstack, and it is not affiliated with or endorsed by the upstream authors. The plugin it installs is still named `pstack`.
 
 Its lineage is:
 
