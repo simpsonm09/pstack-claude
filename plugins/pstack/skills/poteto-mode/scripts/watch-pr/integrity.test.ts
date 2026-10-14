@@ -47,7 +47,7 @@ describe("commit identity", () => {
     mergeStateStatus: "CLEAN",
     reviewDecision: "APPROVED",
     headRefOid: "head",
-    baseRefOid: "base",
+    baseRef: { target: { oid: "base" } },
     headRefName: "feature",
     baseRefName: "main",
     state: "OPEN",
@@ -56,7 +56,10 @@ describe("commit identity", () => {
   };
 
   it("rejects an open PR without a head or base commit where it is parsed", () => {
-    for (const missing of [{ headRefOid: null }, { baseRefOid: "" }])
+    for (const missing of [
+      { headRefOid: null },
+      { baseRef: { target: { oid: "" } } },
+    ])
       expect(() =>
         parsePullRequest({ ...rawPullRequest, ...missing }, context)
       ).toThrow(WatcherQueryError);
@@ -70,7 +73,7 @@ describe("commit identity", () => {
           state: "MERGED",
           mergedAt: "2026-07-26T00:00:00Z",
           headRefOid: null,
-          baseRefOid: null,
+          baseRef: null,
         },
         context
       )
@@ -130,6 +133,28 @@ describe("commit identity", () => {
 
   it("rejects base movement with the same head and base branch", async () => {
     const reader = fakeReader({ factsOnReread: { baseRefOid: "advanced" } });
+    await expect(readSnapshot({ ...snapshotArgs, reader })).rejects.toThrow(
+      "PR changed while collecting"
+    );
+  });
+
+  it("detects current base movement when the PR's scalar base OID stays stale", async () => {
+    const base = fakeReader();
+    let reads = 0;
+    const reader = {
+      ...base,
+      async pullRequest(requested: typeof context) {
+        const baseRefOid = reads++ === 0 ? "base" : "advanced";
+        return parsePullRequest(
+          {
+            ...rawPullRequest,
+            baseRefOid: "stale-base",
+            baseRef: { target: { oid: baseRefOid } },
+          },
+          requested
+        );
+      },
+    };
     await expect(readSnapshot({ ...snapshotArgs, reader })).rejects.toThrow(
       "PR changed while collecting"
     );
@@ -809,10 +834,11 @@ describe("landing validators", () => {
     [
       "parseLandingRevision",
       () =>
-        parseLandingRevision(
-          { headRefOid: "head", baseRefName: "main" },
-          context
-        ),
+        parseLandingRevision({
+          context,
+          headRefOid: "head",
+          baseRefName: "main",
+        }),
       "baseRefOid must be a non-empty string",
     ],
   ] as const)
@@ -842,7 +868,7 @@ describe("landing validators", () => {
             mergeStateStatus: "CLEAN",
             reviewDecision: "APPROVED",
             headRefOid: null,
-            baseRefOid: "base",
+            baseRef: { target: { oid: "base" } },
             headRefName: "feature",
             baseRefName: "main",
             state: "OPEN",

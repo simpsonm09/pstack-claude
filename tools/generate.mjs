@@ -87,6 +87,7 @@ export const PORTABLE_ASSETS = [
     source: "LICENSE-cursor-team-kit",
     target: "poteto-mode/references/licenses/LICENSE-cursor-team-kit",
   },
+  { source: "LICENSE-thermos", target: "poteto-mode/references/licenses/LICENSE-thermos" },
   { source: "NOTICE-skills.md", target: "poteto-mode/references/licenses/NOTICE.md" },
 ];
 
@@ -207,6 +208,13 @@ export function validatePluginLayout(pluginRoot) {
   if (existsSync(join(pluginRoot, "commands"))) {
     const prompts = PROMPT_RUNTIMES.map((runtime) => runtime.prompts).join(", ");
     throw new Error(`${PLUGIN}/commands/ exists; trampolines belong in ${prompts} (CHANGES 0.9.13)`);
+  }
+  // #265: Codex reads a root plugin.json with an Agent Plugins $schema ahead
+  // of .codex-plugin/plugin.json, and loads no plugin hooks in that format, so
+  // the SessionStart hook never runs. Each runtime's manifest lives in its own
+  // directory instead.
+  if (existsSync(join(pluginRoot, "plugin.json"))) {
+    throw new Error(`${PLUGIN}/plugin.json exists; Codex then skips the hooks .codex-plugin/plugin.json names (#265)`);
   }
   // #58: a plugin's agents register under the plugin namespace, so a dispatch
   // of the bare name errors at runtime with "Agent type 'x' not found".
@@ -720,7 +728,7 @@ export function effortSection(levels, defaultEffort) {
 // The effort agents: one general-purpose worker and one poteto-agent per level.
 // The poteto variants carry poteto-agent's body. Their descriptions name
 // pstack:poteto-agent instead of copying its routing contract, so only the
-// base agent reads as the routing target for /poteto-mode. A description is
+// base agent reads as the delegate /poteto-mode runs spawn. A description is
 // written unquoted, so it must not open with a backtick: strict YAML rejects it.
 export function effortAgents(levels, potetoAgent) {
   const { body } = parseFrontmatter(potetoAgent);

@@ -1,17 +1,21 @@
 ---
 name: principle-test-behavior-not-implementation
-description: "Apply when you write, change, or keep a test. Identify a relevant defect and check that the test detects it. Assert the required result or observable effect, including absence when the contract requires it."
+description: "Apply when you write, change, or keep a test. Call the code as its users do and assert the exact result they see. Rewrite or delete a test that would pass if every imported function returned undefined."
 user-invocable: false
 ---
 
-# Test behavior, not implementation
+# Test Behavior, Not Implementation
 
-Before keeping a test, name a relevant defect and determine whether the complete test arrangement detects it. Where practical, introduce that defect temporarily and observe the failure. Exercise the subject through its public interface and check the required result or effect.
+A test calls the code as its users do and asserts the exact result they see. Rewrite or delete any test that would still pass if every imported function returned `undefined` or a wrong value.
 
-- A missing-result experiment helps when the contract requires a result. `toBeDefined` detects a missing result, but accepts the wrong one. Strengthen it to check the particular result when correctness requires one.
-- Keep absence assertions when absence is required. For a denied operation that must send no email, exercise the denial and check the outbox is empty. Temporarily make the denied path send an email and confirm the test fails. An assertion on absence does not require a positive case in the same test.
-- Keep fixed-value checks when the value is an explicit user-facing contract, such as a promised default or instruction. Name that contract and the defect a changed value would cause. Avoid freezing incidental constants or prompt wording with no such contract.
-- Keep comparisons between results when disagreement exposes a real defect. An expected result computed through the same faulty path as the actual result can confirm itself. Use an independent expectation or a relation that the identified defect actually violates.
-- Assess shared setup and the test body together. Calling the subject in `beforeEach` is valid; asserting only untouched fixture data is not.
+These shapes fail that check:
 
-Reject tests that exercise nothing relevant, assert nothing meaningful, or only show that a substitute was called without checking the required effect. Check its payload or resulting state when that establishes the contract. An assertion's syntax alone cannot tell you whether it detects a defect.
+- Loose or no assertion: `toBeDefined`, `toBeTruthy`, `not.toThrow`, `toBeGreaterThan(0)`.
+- Call or absence only: `toHaveBeenCalled`, `not.toHaveBeenCalled`, `toBeUndefined`, `toEqual([])`.
+- Expected value computed by the code under test: `expect(f(a)).toBe(f(a))`.
+- Restated constant, config default, table row, or prompt string.
+- Assertions on data the test built, with no call to the subject.
+
+Fix: call the subject in the test body with one concrete input and assert the literal output or effect. For a mock, assert the payload it received. For an absence, also assert the presence on another input. For a constant, test the mechanism that reads it with one input instead of restating the value.
+
+Keep relation checks across table rows (a key in two tables, a parent that exists) and `*.test-d.ts` type checks. Keep an absence-only test when the contract requires the absence and making the subject produce it fails the test: a denied operation must send no email, so temporarily make the denied path send one and watch the test fail. Keep a constant pin when the value is a promise to users, such as a documented default, and name that promise.
