@@ -330,5 +330,6 @@ describe.skipIf(process.platform !== "win32" && !required)("Windows Copilot Sess
       expect(legacy.status).toBe(0);
       expect(modern.out.equals(legacy.out)).toBe(true);
     });
-  });
+    // The first start of Windows PowerShell 5.1 on a hosted runner has taken 19 to 108 seconds.
+  }, 180000);
 });
