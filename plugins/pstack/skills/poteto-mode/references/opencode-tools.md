@@ -51,7 +51,7 @@ pstack ships no default model IDs for OpenCode, as on GitHub Copilot. Skills nam
 
 - A pstack subagent runs on the session's current model. The `subagent` tool takes no per-call model field.
 - To run one role on another model, add a `model:` line naming a `provider/model` ID, with an optional `#variant`, to an agent profile outside the installer's managed set. Confirm the ID in the model list the harness shows, then run a fresh subagent and check the model it reports before you rely on it.
-- Roles that default to the strongest Claude model (`bug-fix`, `perf-issue`, `hillclimb`, `strongest judgment`) run on the session's model too.
+- Roles that default to the strongest Claude model (`strongest judgment`) run on the session's model too.
 - Diverse-model panels (`arena`, `architect`, `interrogate`, `how` critics, `reflect`) lose their diversity while every reviewer runs on one model. Say so in the verdict. Distinct profiles restore it.
 
 The `/setup-pstack` sheet does not reach OpenCode subagents, so its role lines have no effect here.

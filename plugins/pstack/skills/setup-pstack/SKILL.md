@@ -72,10 +72,10 @@ Write the current runtime's sheet with the shape below. Overwrite the whole file
 
 Per-role model overrides for pstack skills. Each pstack SKILL.md names its defaults in a Models section; the values here override those defaults. Delete a line to fall back to the skill default. A value of `inherit-parent` or `auto` runs that role on the parent session's model (the `Agent` call omits `model`); an alias entry in a panel list still counts toward that panel's fan-out. A model may carry a reasoning effort, as in `opus @xhigh` (levels: low, medium, high, xhigh, max); the role then runs through the pstack effort agent of that level, each entry of a panel list on its own. `default effort` sets the level for a value without one; `session` keeps the parent session's effort. `session hook: off` stops the Claude Code or Codex SessionStart hook, or the pstack Pi extension, from injecting the poteto-mode mandate; any other value, or no line, leaves it on.
 
-feature, refactoring: opus
-bug-fix: fable
-perf-issue: fable
-hillclimb: fable
+feature, refactoring: sonnet
+bug-fix: opus
+perf-issue: opus
+hillclimb: opus
 judgment and prose: opus
 strongest judgment: fable
 how explorer: opus
@@ -100,9 +100,11 @@ On Claude Code, if `<config>/CLAUDE.md` does not already include `<config>/pstac
 
 On Codex, paste the model rows and the `default effort` line into `<codex-home>/AGENTS.md`; Codex has no `@` include. Do not paste the `session hook` line there: the plugin hook reads it directly from `<codex-home>/pstack-models.md`.
 
+On OpenCode, leave the sheet as written: the pstack plugin does not read it, so its role lines cannot set a subagent model, and do not add it to an `instructions` array. To run a role on another model, add a `model:` line to an agent profile you own, as [opencode-tools.md](../poteto-mode/references/opencode-tools.md#model-names) describes. The `session hook` line does not apply; the plugin's `routing` option controls the routing instruction instead.
+
 ### 8. Confirm
 
-Tell the user where the override was written, how its model rows load, and whether the plugin hook is on. Re-running this skill updates the override sheet.
+Tell the user where the override was written, how its model rows load, and whether the plugin hook is on. On OpenCode, say the sheet is a record of the user's choices: a subagent's model comes from its agent profile if that profile names one, otherwise from the session. Re-running this skill updates the override sheet.
 
 ### 9. Offer a verification skill (optional)
 
@@ -118,7 +120,7 @@ The role lines are the same everywhere. What differs is the sheet path, how the 
 | Codex | `<codex-home>/pstack-models.md` | model rows: paste into `<codex-home>/AGENTS.md`; hook setting: read by the plugin | your configured Codex models, see [codex-tools.md](../poteto-mode/references/codex-tools.md#model-names) | hook contract tested; discovery verified |
 | Pi | `pstack-models.md` in the Pi agent directory, `$PI_CODING_AGENT_DIR` or `~/.pi/agent` | read by the pstack Pi extension, model rows and hook setting both; no include line | `pi --list-models`, see [pi-tools.md](../poteto-mode/references/pi-tools.md#model-names) and its `setup-pstack` note | extension contract tested offline; live results in the repository's `docs/pi-equivalence.md` |
 | GitHub Copilot (CLI and app) | `${COPILOT_HOME:-~/.copilot}/pstack-models.md` | the plugin hook checks it and injects its role lines at session start; skills-only installs read it with `view` | the `task` tool's `model` enum, see [copilot-tools.md](../poteto-mode/references/copilot-tools.md#model-names) | hook contract tested; CLI install smoke-tested |
-| opencode | `~/.config/opencode/pstack-models.md` | add the path to the `instructions` array in `opencode.json` | the `models` slash command in the session | from published docs, no live session |
+| opencode | `~/.config/opencode/pstack-models.md` | the pstack plugin does not load the sheet and there is no supported path for its role lines to set a subagent model; keep the file as the record of the user's choices and do not add it to an `instructions` array. Set a model on an agent profile, see [opencode-tools.md](../poteto-mode/references/opencode-tools.md#per-skill-notes) | the `models` slash command in the session | from published docs, no live session |
 | Gemini CLI | `~/.gemini/pstack-models.md` | `@~/.gemini/pstack-models.md` in `~/.gemini/GEMINI.md` | the `model` slash command in the session | from published docs, no live session |
 | Prime Agent | no documented sheet path; Prime's configuration chooses models | | | no live session |
 

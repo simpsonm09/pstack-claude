@@ -92,6 +92,10 @@ uvx zizmor@1.29.0 --persona pedantic --min-severity low --collect all -- .
 
 `--collect all` matches what CI scans. Pointing zizmor at `.github/workflows/` alone skips `dependabot.yml`, so the local run comes back clean on findings CI will fail on.
 
+## Line endings
+
+Every text file is LF, in the repository and in the working tree, whatever `core.autocrlf` is set to: `.gitattributes` carries `* text=auto eol=lf`. The generator finds its regions by matching exact line strings, and `bun tools/generate.mjs --check` compares on-disk text, so a CRLF checkout fails with a missing anchor before it compares anything. The committed text is already LF, so the attributes change no file's content, and the PNG assets are marked binary and stay byte for byte. `.gitattributes` applies when Git materializes files; it does not rewrite files already present in an existing working tree. A fresh clone uses this contract automatically.
+
 ## Things that will fail CI
 
 - **A `plugins/pstack/commands/` directory.** Claude Code renders commands and user-invocable skills in the same slash menu, so a trampoline paired with its skill duplicates every `/pstack:<name>` row ([#22](https://github.com/michael-denyer/pstack-claude/issues/22)). Codex stubs live in `plugins/pstack/.codex-plugin/prompts/`. An upstream sync will try to reintroduce `commands/`; move any new stubs across.
@@ -125,3 +129,5 @@ So: any PR that changes skill behavior either bumps the version itself or is fol
 ## Reporting bugs
 
 Include the pstack version, the Claude Code (or Codex, Pi, or GitHub Copilot) version, and the reproduction steps. [#22](https://github.com/michael-denyer/pstack-claude/issues/22) is the model to copy: it named versions, gave numbered steps, and included the experiment that isolated the cause.
+
+Reproduce the bug on the latest release before you file it, because only that release receives fixes. The [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml) asks for each of these fields. An issue filed through `gh` or the API skips the form, so give the same fields in the same order.

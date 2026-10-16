@@ -64,7 +64,7 @@ describe("the OpenCode runtime row", () => {
   });
 
   test("the stamped mapping file carries exactly that section", () => {
-    expect(readRepo(MAPPING)).toContain(opencodeModelNamesSection(models));
+    expect(readRepo(MAPPING).replace(/\r\n/g, "\n")).toContain(opencodeModelNamesSection(models));
   });
 });
 
@@ -129,7 +129,7 @@ describe("the shipped OpenCode build", () => {
 
   test("every shipped profile is a subagent with no model key", () => {
     for (const agent of OPENCODE_AGENTS) {
-      const block = readRepo(`${OPENCODE}/agents/${agent}.md`).match(/^---\n([\s\S]*?)\n---/)[1];
+      const block = readRepo(`${OPENCODE}/agents/${agent}.md`).match(/^---\r?\n([\s\S]*?)\r?\n---/)[1];
       const data = Bun.YAML.parse(block);
       expect(Object.hasOwn(data, "model")).toBe(false);
       expect(data.mode).toBe("subagent");

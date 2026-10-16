@@ -47,7 +47,8 @@ Skills name Claude Code model aliases in their Models sections. Those aliases ar
 - No sheet, or the hook reports `sheet invalid`: before a skill that needs a role model (`architect`, `arena`, `how`, `interrogate`, `poteto-mode`, `reflect`, `swarm`, `why`), stop, load `setup-pstack` with the `skill` tool, and finish it first. In that same session, use the values it just wrote; later sessions get them from the hook. Do not ask again on later runs.
 - A role line in the sheet is the user's explicit model instruction, so pass it as the `task` tool's `model` parameter. `inherit-parent` or `auto` omits `model`.
 - The plugin's `PreToolUse` hook enforces this for pstack agents. While the sheet is valid, it denies a `task` call whose `agent_type` starts with `pstack:` and whose `model` is not one of the sheet's values, and its reason lists the saved IDs. Retry with the role's saved model; never retry on another unsaved model. It leaves calls with no `model` and other agent types alone.
-- Roles that default to the strongest model (`bug-fix`, `perf-issue`, `hillclimb`, `strongest judgment`): the strongest model the user chose.
+- Roles that default to the worker model (`feature, refactoring`): the worker model the user chose.
+- Roles that default to the strongest model (`strongest judgment`): the strongest model the user chose.
 - Diverse-model panels (`arena`, `architect`, `interrogate`, `how` critics, `reflect`): the adversarial signal comes from model diversity, so fill a panel from distinct vendors in the `task` tool's `model` list (Claude, GPT, Gemini, Grok, and so on). pstack ships no default Copilot panel. If only one vendor is reachable, vary reasoning effort and note in the verdict that diversity was reduced.
 
 `setup-pstack` lists the models from the `model` enum of the `task` tool and writes only IDs it saw there. After it writes the sheet, it runs its `check-sheet.sh` script, which applies the hook's checks.
@@ -80,7 +81,7 @@ The Copilot app loads the same plugin as the CLI and adds session-level tools. U
 | Isolated writer (swarm worker, stack layer, orchestrate worker) | `create_session`, one worktree session per writer | `git worktree add` per writer, then `task` workers pointed at it |
 | Recurring wake-up (`loop`, the `/loop` audit tick, babysit's cadence) | `save_session_automation` on this session | Re-run the step yourself each turn, or ask the user to re-invoke; state the cadence in the decision trail |
 | Coordinate several sessions or repos (`orchestrate`, `autopilot-full`) | The app's `orchestrate` skill plus `send_session_message` | `task` fan-out with worktrees; `/fleet` for parallel subagents |
-| Stacked PRs (`autopilot-stack`, shipping a stack) | The app's `pr-stack` skill, one child session per layer | `gt` or `gh`, one worktree per layer |
+| Stacked PRs (`autopilot-stack`, shipping a stack) | The app's `pr-stack` skill, one child session per layer | `gh` or `origin`, one worktree per layer |
 | Watch a PR to merge (`babysit`, `watch-pr`) | Agent merge on the session, or `babysit` with `save_session_automation` | `babysit` with the vendored `watch-pr` script and `gh` |
 | Drive a UI | The `browser` canvas, or your browser automation | Your browser automation, or a concrete manual check for the user |
 
@@ -131,7 +132,7 @@ Affected skill entry points point here. Most skills need only the tables above. 
 
 ## Vendored scripts
 
-`skills/poteto-mode/scripts/` ships the `watch-pr` PR watcher, the `orch` store CLI, `resume.mjs`, and `worktree-audit.mjs`. They use bun and Node.js and run the same on Copilot; invoke them through `bash` in the form Plugin file access above describes. They need `bun`, `gh`, and (for stack work) `gt`. `worktree-audit.mjs` finds each worktree's last chat in Claude Code transcripts under `~/.claude/projects/`, in Codex and Pi sessions, and in Copilot sessions under `${COPILOT_HOME:-~/.copilot}/session-state`. Pass transcript directories after the repo path to scan others instead. It imports the transcript walker from `skills/reflect/scripts/find-transcript.mjs`, so keep the `reflect` skill installed beside `poteto-mode`.
+`skills/poteto-mode/scripts/` ships the `watch-pr` PR watcher, the `orch` store CLI, `resume.mjs`, and `worktree-audit.mjs`. They use bun and Node.js and run the same on Copilot; invoke them through `bash` in the form Plugin file access above describes. They need `bun` and `gh`, or `origin` when the forge is Origin. `worktree-audit.mjs` finds each worktree's last chat in Claude Code transcripts under `~/.claude/projects/`, in Codex and Pi sessions, and in Copilot sessions under `${COPILOT_HOME:-~/.copilot}/session-state`. Pass transcript directories after the repo path to scan others instead. It imports the transcript walker from `skills/reflect/scripts/find-transcript.mjs`, so keep the `reflect` skill installed beside `poteto-mode`.
 
 ## Instructions file
 
