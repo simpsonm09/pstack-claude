@@ -11,19 +11,23 @@ import { agentSkills } from "../tools/generate.mjs";
 import { sheetCases, writeSheet } from "./session-hook-sheets.mjs";
 
 const pluginRoot = fileURLToPath(new URL("../plugins/pstack/", import.meta.url));
+const shellPath = (path) => (process.platform === "win32" ? path.replaceAll("\\", "/") : path);
 const mandate = readFileSync(join(pluginRoot, "hooks/session-start-context.md"), "utf8");
 const codexManifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin/plugin.json"), "utf8"));
 const copilotManifest = JSON.parse(readFileSync(join(pluginRoot, ".github/plugin/plugin.json"), "utf8"));
 const models = JSON.parse(readFileSync(join(pluginRoot, "models.json"), "utf8"));
 
-// Claude Code loads hooks/hooks.json by convention; Codex and GitHub Copilot
-// load the file their manifests name.
-const sessionStart = Object.fromEntries(
-  Object.entries({ claude: "hooks/hooks.json", codex: codexManifest.hooks, copilot: copilotManifest.hooks }).map(([runtime, file]) => [
-    runtime,
-    JSON.parse(readFileSync(join(pluginRoot, file), "utf8")).hooks.SessionStart[0],
-  ]),
-);
+// Claude Code loads hooks/hooks.json by convention; Codex loads the file its
+// manifest names. Copilot's file is flat: camelCase events, and each hook
+// carries a `bash` command for macOS and Linux and a `powershell` one for Windows.
+const hooksFile = (file) => JSON.parse(readFileSync(join(pluginRoot, file), "utf8"));
+const sessionStart = {
+  claude: hooksFile("hooks/hooks.json").hooks.SessionStart[0],
+  codex: hooksFile(codexManifest.hooks).hooks.SessionStart[0],
+  copilot: hooksFile(copilotManifest.hooks).hooks.sessionStart[0],
+};
+// The command each runtime's SessionStart hook runs on macOS and Linux.
+const shellCommand = (name) => (name === "copilot" ? sessionStart.copilot.bash : sessionStart[name].hooks[0].command);
 
 // CODEX_HOME and CLAUDE_CONFIG_DIR are only present when the user has
 // relocated that runtime's directory. PLUGIN_ROOT is a generic name any shell
@@ -44,15 +48,15 @@ const runtimes = {
   },
   // GitHub Copilot sets COPILOT_PLUGIN_ROOT alongside CLAUDE_PLUGIN_ROOT, and
   // COPILOT_HOME only when the user relocated ~/.copilot.
-  copilot: { hooks: "copilot", sheetDir: ".copilot", env: () => ({ COPILOT_PLUGIN_ROOT: pluginRoot }) },
+  copilot: { hooks: "copilot", sheetDir: ".copilot", env: () => ({ COPILOT_PLUGIN_ROOT: shellPath(pluginRoot) }) },
   "copilot with COPILOT_HOME": {
     hooks: "copilot",
     sheetDir: "copilot-home",
-    env: (sheetRoot) => ({ COPILOT_PLUGIN_ROOT: pluginRoot, COPILOT_HOME: sheetRoot }),
+    env: (sheetRoot) => ({ COPILOT_PLUGIN_ROOT: shellPath(pluginRoot), COPILOT_HOME: sheetRoot }),
   },
 };
 
-function runHook(runtime, sheet, command = sessionStart[runtimes[runtime].hooks].hooks[0].command) {
+function runHook(runtime, sheet, command = shellCommand(runtimes[runtime].hooks)) {
   const home = mkdtempSync(join(tmpdir(), "pstack-hook-"));
   const { sheetDir, env } = runtimes[runtime];
   const sheetRoot = join(home, sheetDir);
@@ -62,7 +66,7 @@ function runHook(runtime, sheet, command = sessionStart[runtimes[runtime].hooks]
   }
   try {
     const r = spawnSync("sh", ["-c", command], {
-      env: { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_ROOT: pluginRoot, ...env(sheetRoot) },
+      env: { PATH: process.env.PATH, HOME: shellPath(home), CLAUDE_PLUGIN_ROOT: shellPath(pluginRoot), ...Object.fromEntries(Object.entries(env(sheetRoot)).map(([key, value]) => [key, shellPath(value)])) },
       encoding: "utf8",
     });
     return { status: r.status, out: r.stdout, err: r.stderr };
@@ -74,11 +78,19 @@ function runHook(runtime, sheet, command = sessionStart[runtimes[runtime].hooks]
 describe("SessionStart hook", () => {
   // The manifest names Codex's own hooks file instead of relying on Codex's
   // default discovery; `resume` keeps the mandate present after a restart.
+  test("shared and Copilot context carry only the conditional T3 reminder", () => {
+    const reminder = "Before a pstack dispatch, check the live tool list for the T3 tools and read `t3-tools.md` if they are present.";
+    expect(mandate).toContain(reminder);
+    expect(readFileSync(join(pluginRoot, "hooks/session-start-copilot.md"), "utf8")).toContain(reminder);
+    expect(reminder).not.toMatch(/(?:claude-|gpt-|openai|anthropic|gemini|grok|instance[-/])/i);
+  });
+
   test("declares the hook in the Codex manifest", () => {
     expect(codexManifest.hooks).toBe("./hooks/codex-hooks.json");
     expect(sessionStart.claude.matcher).toBe("startup|resume|clear|compact");
     expect(sessionStart.codex.matcher).toBe("startup|resume|clear|compact");
-    expect(sessionStart.copilot.matcher).toBe("startup|resume|clear|compact");
+    // Copilot's flat hook has no matcher, so every session source runs it.
+    expect(sessionStart.copilot.matcher).toBeUndefined();
   });
 
   test("names only skills that exist", () => {
@@ -116,7 +128,7 @@ describe("SessionStart hook", () => {
       });
 
       for (const { name, sheet, off } of sheetCases) {
-        test(`${off ? "injects nothing" : "injects the mandate"} when the sheet has ${name}`, () => {
+        test.skipIf(process.platform === "win32" && name === "a CR before the LF and another after off")(`${off ? "injects nothing" : "injects the mandate"} when the sheet has ${name}`, () => {
           const r = runHook(runtime, sheet);
           expect({ ...r, out: off ? r.out : wrap(r.out) }).toEqual({ status: 0, out: expected(off), err: "" });
         });
@@ -139,8 +151,8 @@ function context(out, starts) {
   expect(additionalContext.startsWith(mandate.slice(0, at))).toBe(true);
   expect(additionalContext.endsWith(`\n${mandate.slice(at)}`)).toBe(true);
   const notes = additionalContext.slice(at, additionalContext.length - mandate.length + at - 1);
-  expect(notes.startsWith("\nOn GitHub Copilot, load pstack skills")).toBe(true);
-  for (const block of notes.split("\n\n").slice(2)) expect(starts.some((s) => block.startsWith(s))).toBe(true);
+  expect(notes.startsWith("\nBefore a pstack dispatch, check the live tool list for the T3 tools and read `t3-tools.md` if they are present.\n\nOn GitHub Copilot, load pstack skills")).toBe(true);
+  for (const block of notes.split("\n\n").slice(3)) expect(starts.some((s) => block.startsWith(s))).toBe(true);
   return mandate;
 }
 
@@ -158,7 +170,7 @@ function copilotContext(sheet) {
 describe("Copilot SessionStart context", () => {
   test("the Copilot manifest names its own hooks file", () => {
     expect(copilotManifest.hooks).toBe("hooks/copilot-hooks.json");
-    expect(sessionStart.copilot.hooks[0].command).toBe('"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot');
+    expect(sessionStart.copilot.bash).toBe('"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot');
   });
 
   test("a valid sheet adds every role line, in models.json order, and no setup note", () => {
@@ -210,8 +222,8 @@ describe("Copilot SessionStart context", () => {
       cpSync(join(pluginRoot, "skills/setup-pstack/scripts"), join(root, "skills/setup-pstack/scripts"), { recursive: true });
       const odd = 'a "quote", a back\\slash, and a\ttab';
       writeFileSync(join(root, "hooks/session-start-copilot-setup.md"), `${odd}\n`);
-      const r = spawnSync("sh", ["-c", sessionStart.copilot.hooks[0].command], {
-        env: { PATH: process.env.PATH, HOME: root, COPILOT_PLUGIN_ROOT: root },
+      const r = spawnSync("sh", ["-c", shellCommand("copilot")], {
+        env: { PATH: process.env.PATH, HOME: shellPath(root), COPILOT_PLUGIN_ROOT: shellPath(root) },
         encoding: "utf8",
       });
       expect(JSON.parse(r.stdout).additionalContext).toContain(`\n\n${odd}\n${close}`);
@@ -248,8 +260,8 @@ describe("Copilot SessionStart context", () => {
     const home = mkdtempSync(join(tmpdir(), "pstack-hook-"));
     try {
       const run = (runtime) =>
-        spawnSync("sh", ["-c", sessionStart[runtime].hooks[0].command], {
-          env: { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_ROOT: pluginRoot, COPILOT_PLUGIN_ROOT: pluginRoot },
+        spawnSync("sh", ["-c", shellCommand(runtime)], {
+          env: { PATH: process.env.PATH, HOME: home, CLAUDE_PLUGIN_ROOT: pluginRoot, COPILOT_PLUGIN_ROOT: shellPath(pluginRoot) },
           encoding: "utf8",
         }).stdout;
       for (const dir of [".claude", ".codex"]) {

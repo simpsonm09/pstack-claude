@@ -1,6 +1,8 @@
 <EXTREMELY_IMPORTANT>
 You have pstack.
 
+Before a pstack dispatch, check the live tool list for the T3 tools and read `t3-tools.md` if they are present.
+
 Invoke the `pstack:poteto-mode` skill and follow its instructions when a task meets any of these:
 
 - it touches more than one file, or changes a signature other files call

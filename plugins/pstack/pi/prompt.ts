@@ -14,7 +14,7 @@ const TOOLS_SECTION = "pstack-pi-tools";
 // poteto-mode/SKILL.md, so every session gets it here.
 function piToolsNote(pluginRoot: string): string {
   const file = join(pluginRoot, "skills", "poteto-mode", "references", "pi-tools.md");
-  return `pstack skills are written for Claude Code. When one names a Claude Code tool (Agent, Skill, AskUserQuestion, Bash), a bundled skill, or a Claude model, read ${file} for the Pi equivalent before following it.`;
+  return `pstack skills are written for Claude Code. When one names a Claude Code tool (Agent, Skill, AskUserQuestion, Bash), a bundled skill, or a Claude model, read ${file} for the Pi equivalent before following it. Before a pstack dispatch, check the live tool list for the T3 tools and read \`t3-tools.md\` if they are present.`;
 }
 // Claude Code's system prompt, word for word but for its function_calls block.
 // pstack skills that say "one message, N Agent calls" rely on it.

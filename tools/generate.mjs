@@ -30,6 +30,7 @@
 //   DRIVER_PLAYBOOKS -> the driver-skill line under each playbook's first heading
 //   plugins/pstack/models.json's roles, again
 //     -> the role list in setup-pstack's scripts/sheet.awk, which checks a Copilot sheet
+//     -> the role list in hooks/session-start-copilot.ps1, the Windows check of the same sheet
 //     -> the list of skills that dispatch on role models in hooks/session-start-copilot.md
 //   plugins/pstack/{agents,effort-agents}/*.md -> the "agents" list in
 //     plugins/pstack/.claude-plugin/plugin.json (a list replaces the default
@@ -73,7 +74,7 @@ const PROMPT_RUNTIMES = RUNTIMES.filter((runtime) => runtime.prompts);
 const VERSIONED_MANIFESTS = [
   ".claude-plugin/marketplace.json",
   `${PLUGIN}/.claude-plugin/plugin.json`,
-  ...RUNTIMES.map((runtime) => runtime.manifest),
+  ...RUNTIMES.map((runtime) => runtime.manifest).filter(Boolean),
 ];
 
 export const PORTABLE_ASSETS = [
@@ -86,6 +87,7 @@ export const PORTABLE_ASSETS = [
     source: "LICENSE-cursor-team-kit",
     target: "poteto-mode/references/licenses/LICENSE-cursor-team-kit",
   },
+  { source: "LICENSE-thermos", target: "poteto-mode/references/licenses/LICENSE-thermos" },
   { source: "NOTICE-skills.md", target: "poteto-mode/references/licenses/NOTICE.md" },
 ];
 
@@ -206,6 +208,13 @@ export function validatePluginLayout(pluginRoot) {
   if (existsSync(join(pluginRoot, "commands"))) {
     const prompts = PROMPT_RUNTIMES.map((runtime) => runtime.prompts).join(", ");
     throw new Error(`${PLUGIN}/commands/ exists; trampolines belong in ${prompts} (CHANGES 0.9.13)`);
+  }
+  // #265: Codex reads a root plugin.json with an Agent Plugins $schema ahead
+  // of .codex-plugin/plugin.json, and loads no plugin hooks in that format, so
+  // the SessionStart hook never runs. Each runtime's manifest lives in its own
+  // directory instead.
+  if (existsSync(join(pluginRoot, "plugin.json"))) {
+    throw new Error(`${PLUGIN}/plugin.json exists; Codex then skips the hooks .codex-plugin/plugin.json names (#265)`);
   }
   // #58: a plugin's agents register under the plugin namespace, so a dispatch
   // of the bare name errors at runtime with "Agent type 'x' not found".
@@ -376,6 +385,25 @@ function sheetRoles(models) {
   ];
 }
 
+const SESSION_START_PS = `${PLUGIN}/hooks/session-start-copilot.ps1`;
+const PS_ROLES_OPEN = "# Stamped from plugins/pstack/models.json; edit there and rerun tools/generate.mjs.";
+const PS_ROLES_CLOSE = "# End of the stamped role list.";
+
+// PowerShell lists of the roles, the panel roles, and the effort levels, as the
+// Windows Copilot hook reads them. Single-quoted, so no text expands.
+function psSheetRoles(models) {
+  const quote = (s) => {
+    if (/['\r\n]/.test(s)) throw new Error(`models.json: "${s}" cannot go in a PowerShell string`);
+    return `'${s}'`;
+  };
+  const list = (name, items) => [`$${name} = @(`, ...items.map((s) => `    ${quote(s)}`), ")"];
+  return [
+    ...list("SheetRoles", models.roles.map((r) => r.role)),
+    ...list("PanelRoles", models.roles.filter((r) => r.tier === "panel").map((r) => r.role)),
+    ...list("SheetEfforts", models.efforts),
+  ];
+}
+
 function requiredRole(models, label) {
   const role = models.roles.find((r) => r.role === label);
   if (!role) throw new Error(`models.json: no "${label}" role, which a stamped region renders from`);
@@ -428,7 +456,7 @@ export function regions(models) {
       locate: fenceUnder("Write the override sheet", "markdown"),
       render: () => [overrideSheetBlock(models)],
     },
-    ...RUNTIMES.map((runtime) => ({
+    ...RUNTIMES.filter((runtime) => runtime.modelNames).map((runtime) => ({
       file: runtime.tools,
       name: "Model names section",
       locate: section("Model names"),
@@ -441,6 +469,12 @@ export function regions(models) {
       render: () => sheetRoles(models),
     },
     {
+      file: SESSION_START_PS,
+      name: "role list",
+      locate: between(PS_ROLES_OPEN, PS_ROLES_CLOSE),
+      render: () => psSheetRoles(models),
+    },
+    {
       file: skillFile("setup-pstack").replace("SKILL.md", "copilot.md"),
       name: "roles by tier",
       locate: tableRows("| Tier | Roles |", "| "),
@@ -448,6 +482,7 @@ export function regions(models) {
         [
           ["Default", "default"],
           ["Strongest", "strongest"],
+          ["Worker", "worker"],
           ["Panel", "panel"],
         ].map(([label, tier]) => `| ${label} | ${models.roles.filter((r) => r.tier === tier).map((r) => code(r.role)).join(", ")} |`),
     },
@@ -530,7 +565,7 @@ export function applyRegions(file, text, models, { strict = true } = {}) {
   return lines.join("\n");
 }
 
-// A role's "models" names a tier (default, strongest, panel) or lists slugs.
+// A role's "models" names a tier (default, strongest, worker, panel) or lists slugs.
 // A tier resolves to its models and stays on the role as `tier`, so moving a
 // tier is one edit and the Codex mapping can follow the same keys.
 export function resolveModels(models) {
@@ -543,7 +578,7 @@ export function resolveModels(models) {
 }
 
 const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"];
-const TIERS = ["default", "strongest", "panel"];
+const TIERS = ["default", "strongest", "worker", "panel"];
 
 // Check models.json's shape and resolve its tiers, throwing with the offending
 // role, tier, or slug named. `skillExists(skill)` reports whether a role's
@@ -694,7 +729,7 @@ export function effortSection(levels, defaultEffort) {
 // The effort agents: one general-purpose worker and one poteto-agent per level.
 // The poteto variants carry poteto-agent's body. Their descriptions name
 // pstack:poteto-agent instead of copying its routing contract, so only the
-// base agent reads as the routing target for /poteto-mode. A description is
+// base agent reads as the delegate /poteto-mode runs spawn. A description is
 // written unquoted, so it must not open with a backtick: strict YAML rejects it.
 export function effortAgents(levels, potetoAgent) {
   const { body } = parseFrontmatter(potetoAgent);
@@ -859,13 +894,36 @@ function shapeFaults(schema, value, subject) {
     );
 }
 
+// GitHub Copilot's native hooks file: one flat object per event, with a `bash`
+// command for macOS and Linux, a `powershell` command for Windows, or both.
+// Copilot reads PascalCase events as Claude Code's format instead, so the
+// Copilot file never uses that shape.
+const FLAT_HOOK = Type.Object(
+  {
+    type: Type.Literal("command"),
+    matcher: Type.Optional(Type.String()),
+    bash: Type.Optional(Type.String()),
+    powershell: Type.Optional(Type.String()),
+    timeoutSec: Type.Optional(Type.Number()),
+  },
+  { additionalProperties: false },
+);
+// Each hook is checked on its own, below, so a fault names its event.
+const FLAT_HOOKS_FILE = Type.Object(
+  { version: Type.Literal(1), hooks: Type.Record(Type.String(), Type.Array(Type.Unknown())) },
+  { additionalProperties: false },
+);
+
 // A hooks file must have the documented shape, every ${<root>}/<path> a
 // command hook names must exist in the plugin, and one the command executes
 // directly must be executable, or the SessionStart hook fails silently for
 // every user.
 // The root is the variable the runtime exports with the plugin's directory.
-export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", root = "CLAUDE_PLUGIN_ROOT" }) {
+// `format` is "copilot" for the flat file, and the nested Claude Code shape
+// otherwise.
+export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", root = "CLAUDE_PLUGIN_ROOT", format = "claude", platform = process.platform }) {
   const raw = JSON.parse(hooksJson);
+  if (format === "copilot") return validateFlatHooks(raw, { statOf, file, root, platform });
   const faults = shapeFaults(HOOKS_FILE, raw, "file");
   if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
   for (const [event, groups] of Object.entries(raw.hooks)) {
@@ -891,7 +949,47 @@ export function validateHooks(hooksJson, { statOf, file = "hooks/hooks.json", ro
         refs.forEach((rel, i) => {
           const st = statOf(rel);
           if (!st) faults.push(`${event}: ${rel} does not exist in the plugin`);
-          else if (i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
+          else if (platform !== "win32" && i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
+        });
+      }
+    }
+  }
+  if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
+}
+
+// The flat file's `bash` command names its script as ${<root>}/<path>, and its
+// `powershell` command as $env:<root>/<path>. Only a `bash` script that runs
+// directly needs the executable bit; PowerShell runs its script with -File.
+function validateFlatHooks(raw, { statOf, file, root, platform }) {
+  const faults = shapeFaults(FLAT_HOOKS_FILE, raw, "file");
+  if (faults.length) throw new Error(`${file}:\n  ${faults.join("\n  ")}`);
+  const forms = {
+    bash: { pattern: new RegExp(`\\$\\{${root}\\}/([^"\\s]+)`, "g"), names: `\${${root}}` },
+    powershell: { pattern: new RegExp(`\\$env:${root}/([^"\\s]+)`, "g"), names: `$env:${root}` },
+  };
+  for (const [event, hooks] of Object.entries(raw.hooks)) {
+    for (const hook of hooks) {
+      const shape = shapeFaults(FLAT_HOOK, hook, "hook");
+      if (shape.length) {
+        faults.push(...shape.map((fault) => `${event}: ${fault}`));
+        continue;
+      }
+      if (hook.bash === undefined && hook.powershell === undefined) {
+        faults.push(`${event}: hook needs a bash or a powershell command`);
+      }
+      for (const [key, { pattern, names }] of Object.entries(forms)) {
+        const command = hook[key];
+        if (command === undefined) continue;
+        const refs = [...command.matchAll(pattern)].map((m) => m[1]);
+        if (!refs.length) {
+          faults.push(`${event}: ${key} command does not reference ${names}: ${command}`);
+          continue;
+        }
+        const executed = key === "bash" && command.replace(/^"/, "").startsWith(`\${${root}}/`);
+        refs.forEach((rel, i) => {
+          const st = statOf(rel);
+          if (!st) faults.push(`${event}: ${rel} does not exist in the plugin`);
+          else if (platform !== "win32" && i === 0 && executed && !(st.mode & 0o111)) faults.push(`${event}: ${rel} is not executable`);
         });
       }
     }
@@ -1018,14 +1116,14 @@ export function problems(root, models) {
     try {
       return check();
     } catch (err) {
-      failures.push(err.message);
+      failures.push(err.message.replaceAll("\\", "/"));
     }
   };
   const pluginRoot = join(root, PLUGIN);
   const skillsDir = join(root, SKILLS);
   const read = (rel) => readFileSync(join(root, rel), "utf8");
   const pathExists = (rel) => existsSync(join(root, rel));
-  const packages = RUNTIMES.map((runtime) =>
+  const packages = RUNTIMES.filter((runtime) => runtime.manifest).map((runtime) =>
     attempt(() => {
       const text = read(runtime.manifest);
       let manifest;
@@ -1047,7 +1145,7 @@ export function problems(root, models) {
   if (models) {
     attempt(() => {
       const strays = markdownFiles(skillsDir).flatMap((full) =>
-        strayModelSlugs(relative(root, full), readFileSync(full, "utf8"), models),
+        strayModelSlugs(relative(root, full).replaceAll("\\", "/"), readFileSync(full, "utf8"), models),
       );
       if (strays.length) {
         throw new Error(
@@ -1060,7 +1158,7 @@ export function problems(root, models) {
   attempt(() => {
     const leads = loadLeadLines(root);
     const strays = markdownFiles(skillsDir).flatMap((full) => {
-      const file = relative(root, full);
+      const file = relative(root, full).replaceAll("\\", "/");
       return readFileSync(full, "utf8")
         .split("\n")
         .flatMap((line, i) =>
@@ -1077,17 +1175,17 @@ export function problems(root, models) {
   });
   attempt(() => validateSkillsTree(skillsDir));
   attempt(() => validateProsePaths(skillsDir));
-  for (const packaged of packages) attempt(() => packaged.runtime.validate({ ...packaged, read, pathExists }));
+  for (const packaged of packages) if (packaged.runtime.validate) attempt(() => packaged.runtime.validate({ ...packaged, read, pathExists }));
   attempt(() => validatePluginLayout(pluginRoot));
   attempt(() => validateAgentFrontmatter(pluginRoot));
   const hooksFiles = [
     { file: "hooks/hooks.json" },
     ...packages.flatMap(({ runtime, manifest }) =>
-      (runtime.hooks?.(manifest) ?? []).map((file) => ({ file, root: runtime.pluginRootVar })),
+      (runtime.hooks?.(manifest) ?? []).map((file) => ({ file, root: runtime.pluginRootVar, format: runtime.hooksFormat })),
     ),
   ];
-  for (const { file, root } of hooksFiles) {
-    attempt(() => validateHooks(readFileSync(join(pluginRoot, file), "utf8"), { statOf, file, root }));
+  for (const { file, root, format } of hooksFiles) {
+    attempt(() => validateHooks(readFileSync(join(pluginRoot, file), "utf8"), { statOf, file, root, format }));
   }
   return failures;
 }

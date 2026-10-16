@@ -8,7 +8,7 @@ This plugin is a port of upstream MIT-licensed work. The port's modifications an
 | --- | --- | --- | --- | --- |
 | `plugins/pstack/skills/poteto-mode/`, `plugins/pstack/skills/architect/`, `plugins/pstack/skills/arena/`, `plugins/pstack/skills/automate-me/`, `plugins/pstack/skills/figure-it-out/`, `plugins/pstack/skills/how/`, `plugins/pstack/skills/interrogate/`, `plugins/pstack/skills/reflect/`, `plugins/pstack/skills/show-me-your-work/`, `plugins/pstack/skills/tdd/`, `plugins/pstack/skills/typescript-best-practices/`, `plugins/pstack/skills/unslop/`, `plugins/pstack/skills/why/`, `plugins/pstack/skills/principle-*/`, `plugins/pstack/agents/poteto-agent.md` | [cursor/plugins/pstack @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/pstack) | (c) 2026 Lauren Tan | MIT | [LICENSE](LICENSE) |
 | `plugins/pstack/skills/deslop/` | [cursor/plugins/cursor-team-kit/skills/deslop @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/cursor-team-kit/skills/deslop) | (c) 2026 Cursor | MIT | [LICENSE-cursor-team-kit](LICENSE-cursor-team-kit) |
-| `plugins/pstack/skills/thermo-nuclear-code-quality-review/` | [cursor/plugins/cursor-team-kit/skills/thermo-nuclear-code-quality-review @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/cursor-team-kit/skills/thermo-nuclear-code-quality-review) | (c) 2026 Cursor | MIT | [LICENSE-cursor-team-kit](LICENSE-cursor-team-kit) |
+| `plugins/pstack/skills/thermos/`, `plugins/pstack/skills/thermo-nuclear-review/`, `plugins/pstack/skills/thermo-nuclear-code-quality-review/`, `plugins/pstack/agents/thermo-nuclear-review-subagent.md`, `plugins/pstack/agents/thermo-nuclear-code-quality-review-subagent.md` | [cursor/plugins/thermos @ 118e73b](https://github.com/cursor/plugins/tree/118e73b0e196e4d49d5aade7ce6dd8985a621f68/thermos) | (c) 2026 Cursor | MIT | [LICENSE-thermos](LICENSE-thermos) |
 | `plugins/pstack/skills/make-pr-easy-to-review/` | [cursor/plugins/cursor-team-kit/skills/make-pr-easy-to-review @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/cursor-team-kit/skills/make-pr-easy-to-review) | (c) 2026 Cursor | MIT | [LICENSE-cursor-team-kit](LICENSE-cursor-team-kit) |
 | `plugins/pstack/skills/fix-ci/` | [cursor/plugins/cursor-team-kit/skills/fix-ci @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/cursor-team-kit/skills/fix-ci) | (c) 2026 Cursor | MIT | [LICENSE-cursor-team-kit](LICENSE-cursor-team-kit) |
 | `plugins/pstack/skills/fix-merge-conflicts/` | [cursor/plugins/cursor-team-kit/skills/fix-merge-conflicts @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/cursor-team-kit/skills/fix-merge-conflicts) | (c) 2026 Cursor | MIT | [LICENSE-cursor-team-kit](LICENSE-cursor-team-kit) |
@@ -21,6 +21,8 @@ This plugin is a port of upstream MIT-licensed work. The port's modifications an
 | `plugins/pstack/skills/benchmark-checklist/`, `plugins/pstack/skills/principle-explain-the-number/` (v0.15.6 additions) | [cursor/plugins/pstack @ 23e4138](https://github.com/cursor/plugins/tree/23e4138/pstack) | (c) 2026 Lauren Tan | MIT | [LICENSE](LICENSE) |
 | `plugins/pstack/skills/correct/` (v0.15.9 addition) | [cursor/plugins/pstack @ e43c7ee](https://github.com/cursor/plugins/tree/e43c7ee/pstack) | (c) 2026 Lauren Tan | MIT | [LICENSE](LICENSE) |
 | `plugins/pstack/skills/poteto-help/` (v0.15.13 addition) | [cursor/plugins/pstack @ 2cbf585](https://github.com/cursor/plugins/tree/2cbf585/pstack) | (c) 2026 Lauren Tan | MIT | [LICENSE](LICENSE) |
+| `plugins/pstack/skills/ketchup/` (v0.15.21 addition) | [cursor/plugins/pstack @ 997ffc7](https://github.com/cursor/plugins/tree/997ffc7/pstack) | (c) 2026 Lauren Tan | MIT | [LICENSE](LICENSE) |
+| `plugins/pstack/skills/in-your-own-words/`, `plugins/pstack/skills/sharpen/` (v0.15.22 and v0.15.24 additions) | [cursor/plugins/pstack @ 99743e9](https://github.com/cursor/plugins/tree/99743e9/pstack) | (c) 2026 Lauren Tan | MIT | [LICENSE](LICENSE) |
 
 ## What changed in the port
 
@@ -31,7 +33,8 @@ Summary of structural changes:
 - Plugin content lives at `plugins/pstack/` (with its own `.claude-plugin/plugin.json`). The repo root holds `.claude-plugin/marketplace.json` and the LICENSE / NOTICE / README / CHANGES docs.
 - `.claude-plugin/marketplace.json` added at repo root so the repo is installable via `/plugin marketplace add`. The marketplace's single plugin entry sources from `./plugins/pstack`.
 - `plugins/pstack/.codex-plugin/prompts/<name>.md` stubs added so each public skill is reachable as a slash command on Codex. Claude Code needs no stubs: the skill itself serves `/pstack:<name>`.
-- Seven skills imported from `cursor-team-kit`: `deslop`, `thermo-nuclear-code-quality-review`, `make-pr-easy-to-review`, `fix-ci`, `fix-merge-conflicts`, `get-pr-comments`, `what-did-i-get-done`. All copied verbatim — no rewiring needed.
+- Six skills imported from `cursor-team-kit`: `deslop`, `make-pr-easy-to-review`, `fix-ci`, `fix-merge-conflicts`, `get-pr-comments`, `what-did-i-get-done`. All copied verbatim — no rewiring needed.
+- Three skills and two agents imported from `thermos`: `thermos`, `thermo-nuclear-review`, `thermo-nuclear-code-quality-review`, `thermo-nuclear-review-subagent`, and `thermo-nuclear-code-quality-review-subagent`. The skills' `subagent_type` values take the `pstack:` namespace, and the agents' parent-orchestration notes name Claude Code's tools; `tools/substitutions.json` lists each rewrite.
 - `plugins/pstack/skills/babysit/` is independently authored as the Claude Code analog of Cursor's `/babysit` built-in. It has no upstream pstack equivalent; its workflow is informed by Cursor's public `/babysit` behavior. No code or prose was copied from any source.
 - `plugins/pstack/skills/poteto-mode/scripts/` is vendored from upstream (`watch-pr`, `orch`, `bootstrap.ts`, `package.json`, `bun.lock`). `worktree-audit.mjs` is a port-only rewrite of upstream's `worktree-audit.sh`, which `tools/upstream.json` excludes from sync; it reads the Claude Code, Codex, and Pi transcript directories instead of Cursor's and reports prunable worktrees. Port edits, each on the forked list `bun tools/sync.mjs --dry-run` prints: `bootstrap.ts` fails clearly under node and installs production dependencies only; `orch/store.ts` and `orch/orch.test.ts` carry the silent-failure fixes from #35; `package.json` typechecks the whole tree; `tsconfig.json` is port-only. Everything else is upstream's code under the upstream MIT license.
 - `plugins/pstack/agents/comment-sicko.md` is upstream's `Comment Sicko` agent, renamed to `comment-sicko` so the name works as a Claude Code `subagent_type`. The body is verbatim.
@@ -56,4 +59,10 @@ Port-authored files covered by this notice include:
 - `README.md`
 - `CHANGES.md`
 
-`LICENSE-cursor-team-kit` is copied verbatim from upstream cursor-team-kit rather than authored for this port.
+`LICENSE-cursor-team-kit` and `LICENSE-thermos` are copied verbatim from upstream cursor-team-kit and thermos rather than authored for this port.
+
+## This fork
+
+The OpenCode build, including its plugin entry, agent profiles, and tool mapping, and the native Windows hooks for GitHub Copilot are additions by simpsonm09. These additions are released under the same [MIT license](LICENSE). Copyright (c) 2026 simpsonm09.
+
+[t3-tools.md](plugins/pstack/skills/poteto-mode/references/t3-tools.md) adapts the T3 mapping reference from [t3-pstack](https://github.com/chhoumann/t3-pstack) by Christian Bager Bach Houmann. The reference was adapted for conditional routing, and its per-skill notes identify the generated preambles. The sheet checker, setup flow, session reminders, and tests are independently implemented for this fork. The adapted reference is released under the MIT License; see [LICENSE-t3-pstack](LICENSE-t3-pstack).

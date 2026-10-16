@@ -1,6 +1,6 @@
 # Pi equivalence
 
-This table lists every Claude Code mechanism the pstack plugin depends on, found by scanning `plugins/pstack/` for tool names, agent fields, hooks, paths, bundled skills, CLIs, and model names. Each row says how Pi 1.0 provides the same behavior and what proves it. `tests/pi-equivalence.test.mjs` fails when a row lacks a valid status, when an `extension` or `script` row names a test that does not exist, or when a `difference` row gives no reason.
+This table lists every Claude Code mechanism the pstack plugin depends on, found by scanning `plugins/pstack/` for tool names, agent fields, hooks, paths, bundled skills, CLIs, and model names. Each row says how Pi 1.1 provides the same behavior and what proves it. `tests/pi-equivalence.test.mjs` fails when a row lacks a valid status, when an `extension` or `script` row names a test that does not exist, or when a `difference` row gives no reason.
 
 Statuses:
 
@@ -66,7 +66,6 @@ The Live column records the end-to-end run on real Pi with `PSTACK_PI_LIVE=1` (`
 | S07c | Frontmatter `disable-model-invocation` | Honored by Pi; no pstack skill sets it | native | Pi docs/skills.md | n/a |
 | C01 | `gh` | Same CLI through `bash` | native | pi-tools.md Vendored scripts | n/a |
 | C02 | `origin` | Same CLI through `bash` | native | pi-tools.md Vendored scripts | n/a |
-| C03 | `gt` | Same CLI through `bash` | native | pi-tools.md Vendored scripts | n/a |
 | C04 | `claude`/`codex` CLI | Prose only (`claude mcp list`), mapped in the `why` note | mapping | pi-tools.md `why` note | n/a |
 | C05 | `bun` scripts | Same through `bash` | native | pi-tools.md Vendored scripts | n/a |
 | C06 | `node` scripts | Same through `bash` | native | pi-tools.md Vendored scripts | n/a |

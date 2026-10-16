@@ -1,0 +1,9 @@
+# Line-ending contract: every text file is LF in the repository and in the
+# working tree, whatever core.autocrlf is set to. The generator finds its
+# regions by matching exact line strings and `bun tools/generate.mjs --check`
+# compares on-disk text, so a checkout that turns these files CRLF fails with a
+# missing anchor. The committed text is already LF, so this changes no content.
+* text=auto eol=lf
+
+# The PNG assets are binary and stay byte for byte.
+*.png binary

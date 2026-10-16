@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -13,8 +13,23 @@ const script = join(import.meta.dir, "../plugins/pstack/skills/poteto-mode/scrip
 // node's ESM loader takes a file URL, not a drive-lettered path.
 const scriptUrl = pathToFileURL(script).href;
 const noNode = spawnSync("node", ["--version"]).status !== 0;
-// Windows ignores chmod, so a directory cannot be made unreadable.
-const noChmod = process.platform === "win32";
+// Windows ignores chmod, and root (or any process with CAP_DAC_OVERRIDE) lists
+// a directory whatever its mode, so neither can make one unreadable.
+const noChmod = (() => {
+  if (process.platform === "win32") return true;
+  const dir = mkdtempSync(join(tmpdir(), "worktree-audit-chmod-"));
+  try {
+    chmodSync(dir, 0o000);
+    readdirSync(dir);
+    return true;
+  } catch (error) {
+    if (error.code === "EACCES") return false;
+    throw error;
+  } finally {
+    chmodSync(dir, 0o755);
+    rmSync(dir, { recursive: true, force: true });
+  }
+})();
 // The audit keys rows by git's spelling, which is forward-slashed on Windows.
 const gitPath = (path) => path.replaceAll(sep, "/");
 // Windows denies symlinkSync without the symlink privilege.
@@ -41,7 +56,8 @@ describe("classify", () => {
     head: known(HEAD),
     age: known(3),
     ancestry: known(true),
-    dirty: known({ wip: 0, untracked: 0 }),
+    dirty: known({ wip: 0, untracked: 0, ignored: 0 }),
+    orphans: known(0),
     remote: known("pushed"),
     pr: known(null),
     recent: known(false),
@@ -49,14 +65,21 @@ describe("classify", () => {
   };
   const mergedPr = { ...ancestor, ancestry: known(false), pr: known({ number: 8, state: "MERGED", headRefOid: HEAD }) };
   const allUnknown = Object.fromEntries(Object.keys(ancestor).map((name) => [name, unknown]));
-  const wip = known({ wip: 1, untracked: 0 });
-  const untracked = known({ wip: 0, untracked: 2 });
+  const wip = known({ wip: 1, untracked: 0, ignored: 0 });
+  const untracked = known({ wip: 0, untracked: 2, ignored: 0 });
+  const ignored = known({ wip: 0, untracked: 0, ignored: 1 });
+  const orphans = known(1);
   const openPr = known({ number: 7, state: "OPEN", headRefOid: HEAD });
 
   test.each([
     ["an ancestor of the trunk", ancestor, "safe"],
     ["untracked files only", { ...ancestor, dirty: untracked }, "hold-untracked"],
-    ["tracked and untracked work", { ...ancestor, dirty: known({ wip: 1, untracked: 2 }) }, "hold-wip"],
+    ["tracked and untracked work", { ...ancestor, dirty: known({ wip: 1, untracked: 2, ignored: 0 }) }, "hold-wip"],
+    ["ignored files outside build and cache directories", { ...ancestor, dirty: ignored }, "hold-ignored"],
+    ["untracked and ignored files", { ...ancestor, dirty: known({ wip: 0, untracked: 2, ignored: 1 }) }, "hold-untracked"],
+    ["commits only the HEAD reflog keeps", { ...ancestor, orphans }, "hold-reflog"],
+    ["reflog-only commits and ignored files", { ...ancestor, dirty: ignored, orphans }, "hold-reflog"],
+    ["reflog-only commits with an open PR and a recent chat", { ...ancestor, orphans, pr: openPr, recent: known(true) }, "hold-reflog"],
     ["a merged PR whose head is the worktree HEAD", mergedPr, "safe"],
     ["commits beyond a merged PR head", { ...mergedPr, head: known("b".repeat(40)) }, "review"],
     ["a closed PR whose head is the worktree HEAD", { ...mergedPr, pr: known({ number: 9, state: "CLOSED", headRefOid: HEAD }) }, "review"],
@@ -71,6 +94,8 @@ describe("classify", () => {
     ["an open PR with a recent chat", { ...ancestor, pr: openPr, recent: known(true) }, "hold-open-pr"],
     ["tracked work while every other fact is unknown", { ...allUnknown, dirty: wip }, "hold-wip"],
     ["untracked files while every other fact is unknown", { ...allUnknown, dirty: untracked }, "hold-untracked"],
+    ["ignored files while every other fact is unknown", { ...allUnknown, dirty: ignored }, "hold-ignored"],
+    ["reflog-only commits while every other fact is unknown", { ...allUnknown, orphans }, "hold-reflog"],
     ["a locked worktree while every other fact is unknown", { ...allUnknown, locked: known("locked") }, "hold-locked"],
     ["an open PR while every other fact is unknown", { ...allUnknown, pr: openPr }, "hold-open-pr"],
     ["a recent chat while every other fact is unknown", { ...allUnknown, recent: known(true) }, "verify-recent-chat"],
@@ -252,6 +277,42 @@ test("a status.showUntrackedFiles=no config does not hide untracked files from t
   expect(git("-C", hidden, "status", "--porcelain")).toBe("");
   const row = rowFor(runAudit(fixture).rows, hidden);
   expect([row[3], row[7]]).toEqual(["untracked:1", "hold-untracked"]);
+});
+
+test("an ignored file outside build and cache directories holds the worktree, ignored dependencies do not", () => {
+  const fixture = createFixture();
+  writeFileSync(join(fixture.repo, ".git/info/exclude"), ".env\nnode_modules/\n");
+  const secrets = addWorktree(fixture, "secrets");
+  writeFileSync(join(secrets, ".env"), "TOKEN=only-here\n");
+  const deps = addWorktree(fixture, "deps");
+  for (const dir of ["node_modules/pkg", "packages/app/node_modules/pkg"]) {
+    mkdirSync(join(deps, dir), { recursive: true });
+    writeFileSync(join(deps, dir, "index.js"), "module.exports = {};\n");
+  }
+  const { rows } = runAudit(fixture);
+  const row = (worktree) => rowFor(rows, worktree);
+  expect([row(secrets)[3], row(secrets)[7]]).toEqual(["ignored:1", "hold-ignored"]);
+  expect([row(deps)[3], row(deps)[7]]).toEqual(["clean", "safe"]);
+});
+
+test("a commit only the worktree's HEAD reflog reaches holds it, a rebased branch's old tip does not", () => {
+  const fixture = createFixture();
+  const detached = addWorktree(fixture, "detached", "--detach");
+  commit(detached, "detached work");
+  git("-C", detached, "checkout", "--detach", "origin/main");
+  const rebased = addWorktree(fixture, "rebased");
+  commit(rebased, "feature");
+  const landed = addWorktree(fixture, "landed");
+  commit(landed, "trunk moves");
+  git("-C", landed, "push", "origin", "HEAD:main");
+  git("-C", rebased, "fetch", "origin");
+  git("-C", rebased, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "rebase", "origin/main");
+  git("-C", rebased, "push", "origin", "HEAD:main");
+  git("-C", fixture.repo, "fetch", "origin");
+  const { rows } = runAudit(fixture);
+  const row = (worktree) => rowFor(rows, worktree);
+  expect([row(detached)[2], row(detached)[3], row(detached)[7]]).toEqual(["YES", "reflog:1", "hold-reflog"]);
+  expect([row(rebased)[2], row(rebased)[3], row(rebased)[7]]).toEqual(["YES", "clean", "safe"]);
 });
 
 // Windows caps a path near 260 bytes, so a mebibyte of status output would take thousands of files there.

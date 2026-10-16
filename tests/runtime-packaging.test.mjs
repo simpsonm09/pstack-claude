@@ -1,10 +1,10 @@
 // Runtime packaging contracts: manifests and hook commands.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateHooks } from "../tools/generate.mjs";
-import { validateCodexMarketplace, validateCopilotManifest, validatePiPackage } from "../tools/runtimes.mjs";
+import { RUNTIMES, validateCodexMarketplace, validateCopilotManifest, validatePiPackage } from "../tools/runtimes.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -52,6 +52,15 @@ describe("manifests", () => {
   const piPackage = json("package.json");
   const copilot = json("plugins/pstack/.github/plugin/plugin.json");
 
+  test("T3 has no manifest row and leaves every native host manifest registered", () => {
+    const t3 = RUNTIMES.find((runtime) => runtime.name === "T3 Code");
+    expect(t3?.manifest).toBeUndefined();
+    expect(RUNTIMES.filter((runtime) => runtime.manifest).map((runtime) => runtime.name)).toEqual(["Codex", "Pi", "GitHub Copilot", "OpenCode"]);
+    for (const runtime of RUNTIMES.filter((candidate) => candidate.manifest)) {
+      expect(existsSync(join(repoRoot, runtime.manifest))).toBe(true);
+    }
+  });
+
   test("the plugin and marketplace manifests agree on every fact they repeat", () => {
     const shared = ({ name, author, homepage, repository, license, keywords }) =>
       ({ name, author, homepage, repository, license, keywords });
@@ -68,6 +77,32 @@ describe("manifests", () => {
     expect(codexMarketplace.plugins.map(({ name, source, category }) => [name, source.path, category])).toEqual([
       [codex.name, claudeMarketplace.plugins[0].source, codex.interface.category],
     ]);
+  });
+});
+
+// #265: Codex takes a root plugin.json whose $schema is an Agent Plugins one
+// ahead of .codex-plugin/plugin.json, and loads no plugin hooks for that
+// format (codex-rs plugin_namespace.rs find_plugin_manifest_path and
+// loader.rs at rust-v0.162.1). This mirrors that lookup and returns the hook
+// events Codex would register.
+function codexHookEvents(read) {
+  const root = read("plugin.json");
+  if (root !== null && JSON.parse(root).$schema?.startsWith("https://agent-plugins.org/schemas/")) return [];
+  const { hooks } = JSON.parse(read(".codex-plugin/plugin.json"));
+  return Object.keys(JSON.parse(read(hooks)).hooks);
+}
+
+describe("Codex hook discovery", () => {
+  const pluginRoot = join(repoRoot, "plugins/pstack");
+  const shipped = (rel) => (existsSync(join(pluginRoot, rel)) ? readFileSync(join(pluginRoot, rel), "utf8") : null);
+
+  test("Codex registers the shipped SessionStart hook", () => {
+    expect(codexHookEvents(shipped)).toContain("SessionStart");
+  });
+
+  test("an Agent Plugins manifest at the plugin root hides the hooks, as 0.9.83 did", () => {
+    const manifest = JSON.stringify({ $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", name: "pstack" });
+    expect(codexHookEvents((rel) => (rel === "plugin.json" ? manifest : shipped(rel)))).toEqual([]);
   });
 });
 
@@ -123,7 +158,7 @@ describe("validateHooks", () => {
     const cmd = hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh" codex');
     const statOf = (rel) => (rel === "hooks/session-start.sh" ? exec : null);
     expect(() => validateHooks(cmd, { statOf })).not.toThrow();
-    expect(() => validateHooks(cmd, { statOf: () => plain })).toThrow("hooks/session-start.sh is not executable");
+    expect(() => validateHooks(cmd, { statOf: () => plain, platform: "linux" })).toThrow("hooks/session-start.sh is not executable");
     expect(() => validateHooks(cmd, { statOf: () => null, file: "hooks/codex-hooks.json" })).toThrow(
       "hooks/codex-hooks.json:\n  SessionStart: hooks/session-start.sh does not exist",
     );
@@ -143,7 +178,7 @@ describe("validateHooks", () => {
     expect(() => validateHooks(hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/nope"'), { statOf: () => null })).toThrow(
       "SessionStart: hooks/nope does not exist",
     );
-    expect(() => validateHooks(hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"'), { statOf: () => plain })).toThrow(
+    expect(() => validateHooks(hooks('"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"'), { statOf: () => plain, platform: "linux" })).toThrow(
       "hooks/session-start.sh is not executable",
     );
   });
@@ -194,6 +229,60 @@ describe("validateHooks", () => {
     expect(() => validateHooks(stop({ type: "constructor" }), { statOf: () => null })).toThrow(
       'Stop: hook type "constructor" is not one of command, http, mcp_tool, prompt, agent',
     );
+  });
+
+  describe("Copilot's flat file", () => {
+    const flat = (hook, event = "sessionStart") => JSON.stringify({ version: 1, hooks: { [event]: [{ type: "command", ...hook }] } });
+    const copilot = { format: "copilot", root: "COPILOT_PLUGIN_ROOT", file: "hooks/copilot-hooks.json" };
+    const ps1 = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$env:COPILOT_PLUGIN_ROOT/hooks/session-start-copilot.ps1\"";
+    const statOf = (rel) => (rel.endsWith(".sh") ? exec : rel.endsWith(".ps1") ? plain : null);
+
+    test("accepts a bash command, a powershell command, or both, each under its root", () => {
+      const bash = '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot';
+      expect(() => validateHooks(flat({ bash, timeoutSec: 30 }), { ...copilot, statOf })).not.toThrow();
+      expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf })).not.toThrow();
+      expect(() => validateHooks(flat({ bash, powershell: ps1 }), { ...copilot, statOf })).not.toThrow();
+      expect(() => validateHooks(flat({ bash, matcher: "view|task|bash" }, "preToolUse"), { ...copilot, statOf })).not.toThrow();
+    });
+
+    test("names a form that does not reference the runtime's root", () => {
+      expect(() => validateHooks(flat({ bash: '"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"' }), { ...copilot, statOf })).toThrow(
+        "sessionStart: bash command does not reference ${COPILOT_PLUGIN_ROOT}",
+      );
+      expect(() => validateHooks(flat({ powershell: '"${COPILOT_PLUGIN_ROOT}/hooks/session-start-copilot.ps1"' }), { ...copilot, statOf })).toThrow(
+        "sessionStart: powershell command does not reference $env:COPILOT_PLUGIN_ROOT",
+      );
+    });
+
+    test("checks each script exists, and only a bash script run directly is executable", () => {
+      const bash = '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh" copilot';
+      expect(() => validateHooks(flat({ bash }), { ...copilot, statOf: () => plain, platform: "linux" })).toThrow("hooks/session-start.sh is not executable");
+      expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf: () => null })).toThrow(
+        "sessionStart: hooks/session-start-copilot.ps1 does not exist in the plugin",
+      );
+      expect(() => validateHooks(flat({ powershell: ps1 }), { ...copilot, statOf: () => plain })).not.toThrow();
+    });
+
+    test("faults a hook with neither command, and a key no flat hook documents", () => {
+      expect(() => validateHooks(flat({}), { ...copilot, statOf })).toThrow("sessionStart: hook needs a bash or a powershell command");
+      expect(() => validateHooks(flat({ bash: "x", commandWindows: "y" }), { ...copilot, statOf })).toThrow(
+        "sessionStart: unknown key commandWindows",
+      );
+      expect(() => validateHooks(flat({ command: "x" }), { ...copilot, statOf })).toThrow("sessionStart: unknown key command");
+    });
+
+    test("faults a file that is not version 1 with an events object", () => {
+      expect(() => validateHooks(JSON.stringify({ version: 2, hooks: {} }), { ...copilot, statOf })).toThrow("hooks/copilot-hooks.json");
+      expect(() => validateHooks(JSON.stringify({ hooks: { sessionStart: [] } }), { ...copilot, statOf })).toThrow("hooks/copilot-hooks.json");
+      expect(() => validateHooks(JSON.stringify({ version: 1, hooks: { sessionStart: {} } }), { ...copilot, statOf })).toThrow(
+        "hooks.sessionStart must be array",
+      );
+    });
+
+    test("rejects the nested Claude shape where the flat file is required", () => {
+      const nested = JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ type: "command", command: '"${COPILOT_PLUGIN_ROOT}/hooks/session-start.sh"' }] }] } });
+      expect(() => validateHooks(nested, { ...copilot, statOf })).toThrow();
+    });
   });
 
   test("faults an event whose value is not a list of matcher groups", () => {
